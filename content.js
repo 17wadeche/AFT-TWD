@@ -1311,6 +1311,8 @@ async function main(host = {}, fetchUrlOverride) {
     return 'red';
   }
   function highlightSpan(span, rules, page) {
+    const pageNumber = page?.dataset?.pageNumber ? +page.dataset.pageNumber : null;
+    const nudges = (pageNumber && pageNudges.get(pageNumber)) || {dx:0, dy:0};
     const walker = document.createTreeWalker(
       span,
       NodeFilter.SHOW_TEXT,
@@ -1368,10 +1370,10 @@ async function main(host = {}, fetchUrlOverride) {
           box.className = 'word-highlight';
           if (shift) box.classList.add('shift-left');
           if (pulseMode && job.isNew) box.classList.add('pulse');
-          const x = (r.left   - layerRect.left) + NUDGE_X;
-          const y = (r.top    - layerRect.top) + NUDGE_Y;
-          const w =  r.width;
-          const h =  r.height;
+          const x = Math.round((r.left  - layerRect.left) + nudges.dx);
+          const y = Math.round((r.top   - layerRect.top)  + nudges.dy);
+          const w = Math.round(r.width);
+          const h = Math.round(r.height);
           box.style.cssText = `${style};
             position:absolute; left:${x}px; top:${y}px; width:${w}px; height:${h}px;
             pointer-events:none; mix-blend-mode:multiply; z-index:5`;
@@ -1433,6 +1435,37 @@ async function main(host = {}, fetchUrlOverride) {
       target.parentNode.replaceChild(wrap, target);
     }
   }
+  function calibratePageOffset(pageView) {
+    const layer = pageView?.textLayer?.textLayerDiv;
+    if (!layer) return {dx:0, dy:0};
+    const sample = layer.querySelector('span');
+    const tn = sample && (function firstTextNode(el){
+      const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+        acceptNode:n => n.data ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+      });
+      return w.nextNode();
+    })(sample);
+    if (!tn) return {dx:0, dy:0};
+    const layerRect = layer.getBoundingClientRect();
+    const spanRect  = sample.getBoundingClientRect();
+    const rng = document.createRange();
+    rng.setStart(tn, 0); rng.setEnd(tn, Math.min(1, tn.length)); // tiny measurable run
+    const r = rng.getClientRects()[0];
+    try { rng.detach?.(); } catch {}
+    if (!r) return {dx:0, dy:0};
+    const ourX = Math.round(r.left - layerRect.left);
+    const ourY = Math.round(r.top  - layerRect.top);
+    const wantX = Math.round(spanRect.left - layerRect.left);
+    const wantY = Math.round(spanRect.top  - layerRect.top);
+    return { dx: wantX - ourX, dy: wantY - ourY };
+  }
+  const pageNudges = new Map();
+  eventBus.on('textlayerrendered', ({ pageNumber }) => {
+    const pv = pdfViewer._pages[pageNumber - 1];
+    const {dx, dy} = calibratePageOffset(pv);
+    pageNudges.set(pageNumber, {dx, dy});
+    aftRefreshHighlights('calibrated-' + pageNumber);
+  });
   function isTextStyle(rule) {
     if (rule.prop) return rule.prop === 'color'; 
     const css = rule.style || '';
@@ -1797,7 +1830,14 @@ async function main(host = {}, fetchUrlOverride) {
   const pdfDoc = await pdfjsLib.getDocument({ data }).promise;
   const eventBus    = new EventBus();
   const linkService = new PDFLinkService({eventBus});
-  const pdfViewer   = new PDFViewer({container, viewer:viewerDiv, eventBus, linkService});
+  const pdfViewer = new PDFViewer({
+    container,
+    viewer: viewerDiv,
+    eventBus,
+    linkService,
+    textLayerMode: 2,   // richer text layer (better rect fidelity)
+    useOnlyCssZoom: true
+  });
   eventBus.on('pagerendered',       () => loader.remove());
   eventBus.on('pagesloaded',        () => loader.remove());
   eventBus.on('pagesinit',          () => loader.remove());

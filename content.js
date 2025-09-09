@@ -1753,37 +1753,18 @@ async function main(host = {}, fetchUrlOverride) {
   eventBus.on('documentloadfailed', () => loader.remove());
   const fix = document.createElement('style');
   fix.textContent = `
-    /* Keep global styles from nudging PDF.js measurements */
     .pdfViewer .textLayer,
     .pdfViewer .textLayer * {
-      font: inherit !important;
-      line-height: normal !important;
-      letter-spacing: 0 !important;
-      word-spacing: 0 !important;
-      font-variant-ligatures: none !important;
-      text-transform: none !important;
-      /* Do not let transforms sneak in */
-      transform: none !important;
-      /* Keep box model neutral */
-      box-sizing: content-box !important;
+      font-variant-ligatures: none;
+      text-transform: none;
+      box-sizing: content-box; /* harmless */
     }
-    .textLayer span {
-      pointer-events:auto !important;
-      opacity:1 !important;
-      mix-blend-mode:multiply;
-    }
-    .styled-word { 
-      display: contents !important;
-    }
+    .textLayer span { pointer-events: auto !important; opacity: 1 !important; mix-blend-mode: multiply; }
+    .styled-word { display: contents !important; }
     .word-highlight {
-      position: absolute;
-      pointer-events: none;
-      mix-blend-mode: multiply;  
-      opacity: .35;            /* translucent highlight */ 
-      border-radius: 2px;
+      position: absolute; pointer-events: none; mix-blend-mode: multiply; opacity: .35; border-radius: 2px;
     }
   `;
-
   fix.textContent += `
     @keyframes pulseHighlight {
       0%   { filter: brightness(2.5) saturate(2); transform: scale(1);   }

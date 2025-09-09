@@ -373,12 +373,6 @@ async function fetchPdfBytes(url) {
     return await viaBg();
   }
 }
-function getLayerScale(layer) {
-  const t = getComputedStyle(layer).transform || '';
-  const m = t.startsWith('matrix(') ? t.slice(7, -1).split(',') : null;
-  if (m && m.length >= 6) return Math.sqrt((+m[0]||1) * (+m[0]||1) + (+m[1]||0) * (+m[1]||0)) || 1;
-  return 1;
-}
 async function main(host = {}, fetchUrlOverride) {
   const NUDGE_X = 0;   // bump left/right if needed
   const NUDGE_Y = 0;  // bump up/down if needed
@@ -393,16 +387,15 @@ async function main(host = {}, fetchUrlOverride) {
     const layer = pageEl.querySelector('.textLayer');
     if (!layer) return;
     const layerRect = layer.getBoundingClientRect();
-    const scale = getLayerScale(layer);
     const overlays = [];
     rects.forEach(r => {
       const box = document.createElement('div');
       box.className = 'aft-ql-flash';
       box.style.cssText = `
         position:absolute;
-        left:${((r.left - layerRect.left)/scale) + NUDGE_X}px;
-        top:${((r.top  - layerRect.top)/scale) + NUDGE_Y}px;
-        width:${r.width/scale}px; height:${r.height/scale}px;
+        left:${(r.left - layerRect.left) + NUDGE_X}px;
+        top:${(r.top  - layerRect.top) + NUDGE_Y}px;
+        width:${r.width}px; height:${r.height}px;
         pointer-events:none; z-index:9; mix-blend-mode:multiply;
       `;
       layer.appendChild(box);
@@ -1278,7 +1271,6 @@ async function main(host = {}, fetchUrlOverride) {
     const layer = page.querySelector('.textLayer');
     if (!layer) return;
     const layerRect = layer.getBoundingClientRect();
-    const scale = getLayerScale(layer);
     if (!layer) return;
     const jobsByKey = Object.create(null);
     for (let textNode; (textNode = walker.nextNode()); ) {
@@ -1325,10 +1317,10 @@ async function main(host = {}, fetchUrlOverride) {
           box.className = 'word-highlight';
           if (shift) box.classList.add('shift-left');
           if (pulseMode && job.isNew) box.classList.add('pulse');
-          const x = ((r.left   - layerRect.left) / scale) + NUDGE_X;
-          const y = ((r.top    - layerRect.top)  / scale) + NUDGE_Y;
-          const w =  (r.width  / scale);
-          const h =  (r.height / scale);
+          const x = (r.left   - layerRect.left) + NUDGE_X;
+          const y = (r.top    - layerRect.top) + NUDGE_Y;
+          const w =  r.width;
+          const h =  r.height;
           box.style.cssText = `${style};
             position:absolute; left:${x}px; top:${y}px; width:${w}px; height:${h}px;
             pointer-events:none; mix-blend-mode:multiply; z-index:5`;
@@ -1340,9 +1332,9 @@ async function main(host = {}, fetchUrlOverride) {
           if (shift) ul.classList.add('shift-left');
           if (pulseMode && job.isNew) ul.classList.add('pulse');
           const ulColor = getUnderlineColorFromStyle(style);
-          const ux = ((r.left   - layerRect.left)  / scale) + NUDGE_X;
-          const uy = ((r.bottom - layerRect.top - 2) / scale) + NUDGE_Y;
-          const uw =  (r.width / scale);
+          const ux = (r.left   - layerRect.left) + NUDGE_X;
+          const uy = (r.bottom - layerRect.top - 2) + NUDGE_Y;
+          const uw =  r.width;
           ul.style.left  = `${ux}px`;
           ul.style.top   = `${uy}px`;
           ul.style.width = `${uw}px`;

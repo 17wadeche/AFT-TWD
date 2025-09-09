@@ -374,10 +374,10 @@ async function fetchPdfBytes(url) {
   }
 }
 async function main(host = {}, fetchUrlOverride) {
-  const NUDGE_X = -2;   // bump left/right if needed
-  const NUDGE_Y = -10;  // bump up/down if needed
-  const HILITE_Y_OFFSET   = Number(localStorage.getItem('AFT_HILITE_Y') ?? -2); // move highlights up a bit
-  const UNDERLINE_Y_OFFSET= Number(localStorage.getItem('AFT_UL_Y')     ??  3);
+  const NUDGE_X = 0;   // bump left/right if needed
+  const NUDGE_Y = 0;  // bump up/down if needed
+  const HILITE_Y_OFFSET   = 0; // move highlights up a bit
+  const UNDERLINE_Y_OFFSET= 0;
   const { viewerEl = null, embedEl = null } = host;
   function getPageScale(pageEl) {
     let scale = 1;
@@ -390,13 +390,15 @@ async function main(host = {}, fetchUrlOverride) {
     if (!layer) return;
     const layerRect = layer.getBoundingClientRect();
     const overlays = [];
+    const scale = getPageScale(pageEl); // Keep the scale calculation
     rects.forEach(r => {
       const box = document.createElement('div');
       box.className = 'aft-ql-flash';
       box.style.cssText = `
         position:absolute;
-        left:${(r.left - layerRect.left) + NUDGE_X}px;
-        top:${(r.top  - layerRect.top)  + NUDGE_Y + Math.round(HILITE_Y_OFFSET * getPageScale(pageEl))}px;
+        /* The main calculation is now simpler and more accurate */
+        left:${(r.left - layerRect.left)}px;
+        top:${(r.top  - layerRect.top) + Math.round(HILITE_Y_OFFSET * scale)}px;
         width:${r.width}px; height:${r.height}px;
         pointer-events:none; z-index:9; mix-blend-mode:multiply;
       `;
@@ -661,6 +663,20 @@ async function main(host = {}, fetchUrlOverride) {
     'CareAlert Event List'
   ];
   styleTag.textContent = `
+    .page {
+      position: relative !important; /* Establishes the positioning context */
+    }
+    .page .canvasWrapper,
+    .page .textLayer {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+    }
     .aft-ql-flash { pointer-events: none; }
     .modern-select {
       color: #000;

@@ -376,6 +376,8 @@ async function fetchPdfBytes(url) {
 async function main(host = {}, fetchUrlOverride) {
   const NUDGE_X = -2;   // bump left/right if needed
   const NUDGE_Y = -10;  // bump up/down if needed
+  const HILITE_Y_OFFSET   = Number(localStorage.getItem('AFT_HILITE_Y') ?? -2); // move highlights up a bit
+  const UNDERLINE_Y_OFFSET= Number(localStorage.getItem('AFT_UL_Y')     ??  3);
   const { viewerEl = null, embedEl = null } = host;
   function getPageScale(pageEl) {
     let scale = 1;
@@ -394,7 +396,7 @@ async function main(host = {}, fetchUrlOverride) {
       box.style.cssText = `
         position:absolute;
         left:${(r.left - layerRect.left) + NUDGE_X}px;
-        top:${(r.top  - layerRect.top)  + NUDGE_Y}px;
+        top:${(r.top  - layerRect.top)  + NUDGE_Y + Math.round(HILITE_Y_OFFSET * getPageScale(pageEl))}px;
         width:${r.width}px; height:${r.height}px;
         pointer-events:none; z-index:9; mix-blend-mode:multiply;
       `;
@@ -1317,7 +1319,7 @@ async function main(host = {}, fetchUrlOverride) {
           if (shift) box.classList.add('shift-left');
           if (pulseMode && job.isNew) box.classList.add('pulse');
           const x = (r.left   - layerRect.left) + NUDGE_X;
-          const y = (r.top    - layerRect.top) + NUDGE_Y;
+          const y = (r.top    - layerRect.top) + NUDGE_Y + Math.round(HILITE_Y_OFFSET * getPageScale(page));
           const w = r.width;
           const h = r.height;
           box.style.cssText = `${style};
@@ -1332,7 +1334,7 @@ async function main(host = {}, fetchUrlOverride) {
           if (pulseMode && job.isNew) ul.classList.add('pulse');
           const ulColor = getUnderlineColorFromStyle(style);
           const ux = (r.left   - layerRect.left) + NUDGE_X;
-          const uy = (r.bottom - layerRect.top - 2) + NUDGE_Y;
+          const uy = (r.bottom - layerRect.top - 2) + NUDGE_Y + Math.round(UNDERLINE_Y_OFFSET * getPageScale(page));
           const uw = r.width;
           ul.style.left  = `${ux}px`;
           ul.style.top   = `${uy}px`;

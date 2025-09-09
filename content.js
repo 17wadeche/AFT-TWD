@@ -375,7 +375,7 @@ async function fetchPdfBytes(url) {
 }
 async function main(host = {}, fetchUrlOverride) {
   const NUDGE_X = 0;   // bump left/right if needed
-  const NUDGE_Y = -1;  // bump up/down if needed
+  const NUDGE_Y = -8;  // bump up/down if needed
   const { viewerEl = null, embedEl = null } = host;
   function getPageScale(pageEl) {
     let scale = 1;

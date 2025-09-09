@@ -374,8 +374,8 @@ async function fetchPdfBytes(url) {
   }
 }
 async function main(host = {}, fetchUrlOverride) {
-  const NUDGE_X = 0;   // bump left/right if needed
-  const NUDGE_Y = 0;  // bump up/down if needed
+  const NUDGE_X = -2;   // bump left/right if needed
+  const NUDGE_Y = -10;  // bump up/down if needed
   const { viewerEl = null, embedEl = null } = host;
   function getPageScale(pageEl) {
     let scale = 1;
@@ -394,7 +394,7 @@ async function main(host = {}, fetchUrlOverride) {
       box.style.cssText = `
         position:absolute;
         left:${(r.left - layerRect.left) + NUDGE_X}px;
-        top:${(r.top  - layerRect.top) + NUDGE_Y}px;
+        top:${(r.top  - layerRect.top)  + NUDGE_Y}px;
         width:${r.width}px; height:${r.height}px;
         pointer-events:none; z-index:9; mix-blend-mode:multiply;
       `;
@@ -812,57 +812,6 @@ async function main(host = {}, fetchUrlOverride) {
   if (!_cssUrl) return; // context gone; abort quietly
   link.href = _cssUrl;
   document.head.appendChild(link);
-  const compatCSS = document.createElement('style');
-  compatCSS.textContent = `
-  /* === PDF.js v5 critical layout shims === */
-  .pdfViewer .page { position: relative; overflow: visible; background: #fff; }
-  .pdfViewer .canvasWrapper { position: absolute; inset: 0; overflow: hidden; }
-  .pdfViewer .textLayer {
-    position: absolute; inset: 0; overflow: hidden;
-    transform-origin: 0 0; pointer-events: auto; opacity: 1; filter: none !important;
-  }
-  .pdfViewer .textLayer span {
-    position: absolute; white-space: pre; transform-origin: 0 0;
-  }
-  /* End-of-content marker */
-  .pdfViewer .textLayer .endOfContent {
-    position: absolute; inset-inline-start: 0; inset-block-end: 0; height: 0; width: 0;
-  }
-  /* === Shield against host-page styles WITHOUT breaking PDF.js metrics === */
-  .pdfViewer .textLayer,
-  .pdfViewer .textLayer *:not(.styled-word) {
-    letter-spacing: normal !important;
-    word-spacing: normal !important;
-    line-height: normal !important;
-    text-transform: none !important;
-    text-indent: 0 !important;
-    text-shadow: none !important;
-    -webkit-text-stroke: 0 !important;
-    mix-blend-mode: normal;
-  }
-  /* Your highlight helpers (unchanged) */
-  .textLayer span { pointer-events:auto !important; opacity:1 !important; mix-blend-mode:multiply; }
-  .styled-word { display: contents !important; }
-  .word-highlight { position:absolute; pointer-events:none; mix-blend-mode:multiply; opacity:.35; border-radius:2px; }
-  .word-underline { position:absolute; pointer-events:none; z-index:6; height:4px; background-repeat:repeat-x; background-position:left bottom; background-size:auto 100%; mix-blend-mode:multiply; }
-  `;
-  document.head.appendChild(compatCSS);
-  (function checkViewerCSS() {
-    const root = document.createElement('div');
-    root.style.cssText = 'position:fixed;left:-99999px;top:-99999px;'; // offscreen
-    const viewer = document.createElement('div'); viewer.className = 'pdfViewer';
-    const page = document.createElement('div'); page.className = 'page';
-    const tl = document.createElement('div'); tl.className = 'textLayer';
-    page.appendChild(tl); viewer.appendChild(page); root.appendChild(viewer);
-    document.body.appendChild(root);
-    const cs = getComputedStyle(tl);
-    const okPos = cs.position === 'absolute';
-    const okOrigin = (cs.transformOrigin || '').startsWith('0px');
-    document.body.removeChild(root);
-    if (!okPos || !okOrigin) {
-      console.warn('[AFT] pdf_viewer.css likely mismatched; applying compat shims');
-    }
-  })();
   const _stylesUrl = extURL('styles.js');
   if (!_stylesUrl) return;
   const { defaultStyleWords, config } = await import(_stylesUrl);
@@ -1311,8 +1260,6 @@ async function main(host = {}, fetchUrlOverride) {
     return 'red';
   }
   function highlightSpan(span, rules, page) {
-    const pageNumber = page?.dataset?.pageNumber ? +page.dataset.pageNumber : null;
-    const nudges = (pageNumber && pageNudges.get(pageNumber)) || {dx:0, dy:0};
     const walker = document.createTreeWalker(
       span,
       NodeFilter.SHOW_TEXT,
@@ -1324,7 +1271,6 @@ async function main(host = {}, fetchUrlOverride) {
     const layer = page.querySelector('.textLayer');
     if (!layer) return;
     const layerRect = layer.getBoundingClientRect();
-    if (!layer) return;
     const jobsByKey = Object.create(null);
     for (let textNode; (textNode = walker.nextNode()); ) {
       const text = textNode.data;
@@ -1370,10 +1316,10 @@ async function main(host = {}, fetchUrlOverride) {
           box.className = 'word-highlight';
           if (shift) box.classList.add('shift-left');
           if (pulseMode && job.isNew) box.classList.add('pulse');
-          const x = Math.round((r.left  - layerRect.left) + nudges.dx);
-          const y = Math.round((r.top   - layerRect.top)  + nudges.dy);
-          const w = Math.round(r.width);
-          const h = Math.round(r.height);
+          const x = (r.left   - layerRect.left) + NUDGE_X;
+          const y = (r.top    - layerRect.top) + NUDGE_Y;
+          const w = r.width;
+          const h = r.height;
           box.style.cssText = `${style};
             position:absolute; left:${x}px; top:${y}px; width:${w}px; height:${h}px;
             pointer-events:none; mix-blend-mode:multiply; z-index:5`;
@@ -1387,13 +1333,13 @@ async function main(host = {}, fetchUrlOverride) {
           const ulColor = getUnderlineColorFromStyle(style);
           const ux = (r.left   - layerRect.left) + NUDGE_X;
           const uy = (r.bottom - layerRect.top - 2) + NUDGE_Y;
-          const uw =  r.width;
+          const uw = r.width;
           ul.style.left  = `${ux}px`;
           ul.style.top   = `${uy}px`;
           ul.style.width = `${uw}px`;
           ul.style.height= `4px`;
           ul.style.backgroundImage = makeWavyDataURI(ulColor, 2, 6);
-          layer.appendChild(ul);
+          page.appendChild(ul);
         }
       }
       range.detach();
@@ -1435,31 +1381,6 @@ async function main(host = {}, fetchUrlOverride) {
       target.parentNode.replaceChild(wrap, target);
     }
   }
-  function calibratePageOffset(pageView) {
-    const layer = pageView?.textLayer?.textLayerDiv;
-    if (!layer) return {dx:0, dy:0};
-    const sample = layer.querySelector('span');
-    const tn = sample && (function firstTextNode(el){
-      const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
-        acceptNode:n => n.data ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
-      });
-      return w.nextNode();
-    })(sample);
-    if (!tn) return {dx:0, dy:0};
-    const layerRect = layer.getBoundingClientRect();
-    const spanRect  = sample.getBoundingClientRect();
-    const rng = document.createRange();
-    rng.setStart(tn, 0); rng.setEnd(tn, Math.min(1, tn.length)); // tiny measurable run
-    const r = rng.getClientRects()[0];
-    try { rng.detach?.(); } catch {}
-    if (!r) return {dx:0, dy:0};
-    const ourX = Math.round(r.left - layerRect.left);
-    const ourY = Math.round(r.top  - layerRect.top);
-    const wantX = Math.round(spanRect.left - layerRect.left);
-    const wantY = Math.round(spanRect.top  - layerRect.top);
-    return { dx: wantX - ourX, dy: wantY - ourY };
-  }
-  const pageNudges = new Map();
   function isTextStyle(rule) {
     if (rule.prop) return rule.prop === 'color'; 
     const css = rule.style || '';
@@ -1546,22 +1467,6 @@ async function main(host = {}, fetchUrlOverride) {
   if (!_pdfUrl || !_pdfViewerUrl || !_pdfWorkerUrl) return;
   const pdfjsLib    = await import(_pdfUrl);
   const pdfjsViewer = await import(_pdfViewerUrl);
-  console.log('[pdfjs]', pdfjsLib.version);          // e.g., '4.x.y'
-  console.log('[pdfjs-viewer]', pdfjsViewer.version);
-  console.log('[viewer exports]', Object.keys(pdfjsViewer));
-  console.log('[has PDFViewer, EventBus?]',
-    typeof pdfjsViewer.PDFViewer,
-    typeof pdfjsViewer.EventBus
-  );
-  console.log('[AFT] viewer CSS href', link.href);
-  setTimeout(() => {
-    const sheet = [...document.styleSheets].find(s => s.href && s.href.includes('pdf_viewer.css'));
-    let hasTextLayer = false;
-    try {
-      hasTextLayer = sheet ? [...sheet.cssRules].some(r => (r.selectorText||'').includes('.textLayer')) : false;
-    } catch { /* cross-origin read might fail; ignore */ }
-    console.log('[AFT] viewer CSS has .textLayer rules?', hasTextLayer);
-  }, 0);
   pdfjsLib.GlobalWorkerOptions.workerSrc = _pdfWorkerUrl;
   const { PDFViewer, PDFLinkService, EventBus } = pdfjsViewer;
   let embed = embedEl;
@@ -1824,44 +1729,29 @@ async function main(host = {}, fetchUrlOverride) {
   const pdfDoc = await pdfjsLib.getDocument({ data }).promise;
   const eventBus    = new EventBus();
   const linkService = new PDFLinkService({eventBus});
-  const pdfViewer = new PDFViewer({
-    container,
-    viewer: viewerDiv,
-    eventBus,
-    linkService,
-    textLayerMode: 2,   // richer text layer (better rect fidelity)
-    useOnlyCssZoom: true
-  });
-  eventBus.on('textlayerrendered', ({ pageNumber }) => {
-    const pv = pdfViewer._pages[pageNumber - 1];
-    const {dx, dy} = calibratePageOffset(pv);
-    pageNudges.set(pageNumber, {dx, dy});
-    aftRefreshHighlights('calibrated-' + pageNumber);
-  });
+  const pdfViewer   = new PDFViewer({container, viewer:viewerDiv, eventBus, linkService});
   eventBus.on('pagerendered',       () => loader.remove());
   eventBus.on('pagesloaded',        () => loader.remove());
   eventBus.on('pagesinit',          () => loader.remove());
   eventBus.on('documentloadfailed', () => loader.remove());
-  eventBus.on('pagerendered', ({ pageNumber }) => {
-    const pv = pdfViewer._pages[pageNumber - 1];
-    const c  = pv?.div?.querySelector('canvas')?.getBoundingClientRect();
-    const t  = pv?.textLayer?.textLayerDiv?.getBoundingClientRect();
-    if (!c || !t) return;
-    console.log(`[AFT] p${pageNumber} dw/dh:`,
-      (c.width - t.width).toFixed(3), (c.height - t.height).toFixed(3));
-  });
   const fix = document.createElement('style');
   fix.textContent = `
-    .pdfViewer .textLayer,
-    .pdfViewer .textLayer * {
-      font-variant-ligatures: none;
-      text-transform: none;
-      box-sizing: content-box; /* harmless */
+    .textLayer span {
+      pointer-events:auto !important;
+      opacity:1 !important;
+      mix-blend-mode:multiply;
     }
-    .textLayer span { pointer-events: auto !important; opacity: 1 !important; mix-blend-mode: multiply; }
-    .styled-word { display: contents !important; }
+    .styled-word { 
+      display: contents !important;
+      font:inherit;
+      letter-spacing: inherit !important;
+    }
     .word-highlight {
-      position: absolute; pointer-events: none; mix-blend-mode: multiply; opacity: .35; border-radius: 2px;
+      position: absolute;
+      pointer-events: none;
+      mix-blend-mode: multiply;  
+      opacity: .35;            /* translucent highlight */ 
+      border-radius: 2px;
     }
   `;
   fix.textContent += `

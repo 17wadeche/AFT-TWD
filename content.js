@@ -374,6 +374,8 @@ async function fetchPdfBytes(url) {
   }
 }
 async function main(host = {}, fetchUrlOverride) {
+  const NUDGE_X = 0;   // bump left/right if needed
+  const NUDGE_Y = -1;  // bump up/down if needed
   const { viewerEl = null, embedEl = null } = host;
   function getPageScale(pageEl) {
     let scale = 1;
@@ -382,19 +384,21 @@ async function main(host = {}, fetchUrlOverride) {
     return scale;
   }
   function flashRectsOnPage(pageEl, rects) {
-    const pageRect = pageEl.getBoundingClientRect();
-    const scale = getPageScale(pageEl);
+    const layer = pageEl.querySelector('.textLayer');
+    if (!layer) return;
+    const layerRect = layer.getBoundingClientRect();
     const overlays = [];
     rects.forEach(r => {
       const box = document.createElement('div');
       box.className = 'aft-ql-flash';
-      const x = (r.left - pageRect.left - 8) / scale;
-      const y = (r.top  - pageRect.top  - 8) / scale;
-      box.style.left   = `${x}px`;
-      box.style.top    = `${y}px`;
-      box.style.width  = `${r.width / scale}px`;
-      box.style.height = `${r.height / scale}px`;
-      pageEl.appendChild(box);
+      box.style.cssText = `
+        position:absolute;
+        left:${(r.left - layerRect.left) + NUDGE_X}px;
+        top:${(r.top  - layerRect.top)  + NUDGE_Y}px;
+        width:${r.width}px; height:${r.height}px;
+        pointer-events:none; z-index:9; mix-blend-mode:multiply;
+      `;
+      layer.appendChild(box);
       overlays.push(box);
     });
     setTimeout(() => overlays.forEach(o => o.remove()), 1600);
@@ -780,6 +784,7 @@ async function main(host = {}, fetchUrlOverride) {
     z-index: 9999;
     animation: aftQlFlash 1.4s ease-out 1 forwards;
     mix-blend-mode: multiply;
+
   }
   @keyframes aftQlFlash {
     0%   { filter: brightness(1.8) saturate(1.6); }
@@ -1311,8 +1316,8 @@ async function main(host = {}, fetchUrlOverride) {
           box.className = 'word-highlight';
           if (shift) box.classList.add('shift-left');
           if (pulseMode && job.isNew) box.classList.add('pulse');
-          const x = r.left   - layerRect.left;
-          const y = r.top    - layerRect.top;
+          const x = (r.left   - layerRect.left) + NUDGE_X;
+          const y = (r.top    - layerRect.top) + NUDGE_Y;
           const w = r.width;
           const h = r.height;
           box.style.cssText = `${style};
@@ -1326,8 +1331,8 @@ async function main(host = {}, fetchUrlOverride) {
           if (shift) ul.classList.add('shift-left');
           if (pulseMode && job.isNew) ul.classList.add('pulse');
           const ulColor = getUnderlineColorFromStyle(style);
-          const ux = r.left   - layerRect.left;
-          const uy = r.bottom - layerRect.top - 2; // tweak -2/-3 to taste
+          const ux = (r.left   - layerRect.left) + NUDGE_X;
+          const uy = (r.bottom - layerRect.top - 2) + NUDGE_Y;
           const uw = r.width;
           ul.style.left  = `${ux}px`;
           ul.style.top   = `${uy}px`;
@@ -1745,6 +1750,8 @@ async function main(host = {}, fetchUrlOverride) {
       position: absolute;
       pointer-events: none;
       mix-blend-mode: multiply;  
+      opacity: .35;            /* translucent highlight */ 
+      border-radius: 2px;
     }
   `;
   fix.textContent += `

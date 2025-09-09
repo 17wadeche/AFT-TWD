@@ -1460,12 +1460,6 @@ async function main(host = {}, fetchUrlOverride) {
     return { dx: wantX - ourX, dy: wantY - ourY };
   }
   const pageNudges = new Map();
-  eventBus.on('textlayerrendered', ({ pageNumber }) => {
-    const pv = pdfViewer._pages[pageNumber - 1];
-    const {dx, dy} = calibratePageOffset(pv);
-    pageNudges.set(pageNumber, {dx, dy});
-    aftRefreshHighlights('calibrated-' + pageNumber);
-  });
   function isTextStyle(rule) {
     if (rule.prop) return rule.prop === 'color'; 
     const css = rule.style || '';
@@ -1837,6 +1831,12 @@ async function main(host = {}, fetchUrlOverride) {
     linkService,
     textLayerMode: 2,   // richer text layer (better rect fidelity)
     useOnlyCssZoom: true
+  });
+  eventBus.on('textlayerrendered', ({ pageNumber }) => {
+    const pv = pdfViewer._pages[pageNumber - 1];
+    const {dx, dy} = calibratePageOffset(pv);
+    pageNudges.set(pageNumber, {dx, dy});
+    aftRefreshHighlights('calibrated-' + pageNumber);
   });
   eventBus.on('pagerendered',       () => loader.remove());
   eventBus.on('pagesloaded',        () => loader.remove());

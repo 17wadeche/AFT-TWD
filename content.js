@@ -812,6 +812,53 @@ async function main(host = {}, fetchUrlOverride) {
   if (!_cssUrl) return; // context gone; abort quietly
   link.href = _cssUrl;
   document.head.appendChild(link);
+  const compatCSS = document.createElement('style');
+  compatCSS.textContent = `
+  /* === PDF.js v5 critical layout shims === */
+  .pdfViewer .page { position: relative; overflow: visible; background: #fff; }
+  .pdfViewer .canvasWrapper { position: absolute; inset: 0; overflow: hidden; }
+  .pdfViewer .textLayer {
+    position: absolute; inset: 0; overflow: hidden;
+    transform-origin: 0 0; pointer-events: auto; opacity: 1; filter: none !important;
+  }
+  .pdfViewer .textLayer span {
+    position: absolute; white-space: pre; transform-origin: 0 0;
+  }
+  /* End-of-content marker */
+  .pdfViewer .textLayer .endOfContent {
+    position: absolute; inset-inline-start: 0; inset-block-end: 0; height: 0; width: 0;
+  }
+  /* === Shield against host-page styles WITHOUT breaking PDF.js metrics === */
+  .pdfViewer .textLayer,
+  .pdfViewer .textLayer *:not(.styled-word) {
+    letter-spacing: normal !important;
+    word-spacing: normal !important;
+    line-height: normal !important;
+    text-transform: none !important;
+    text-indent: 0 !important;
+    text-shadow: none !important;
+    -webkit-text-stroke: 0 !important;
+    mix-blend-mode: normal;
+  }
+  /* Your highlight helpers (unchanged) */
+  .textLayer span { pointer-events:auto !important; opacity:1 !important; mix-blend-mode:multiply; }
+  .styled-word { display: contents !important; }
+  .word-highlight { position:absolute; pointer-events:none; mix-blend-mode:multiply; opacity:.35; border-radius:2px; }
+  .word-underline { position:absolute; pointer-events:none; z-index:6; height:4px; background-repeat:repeat-x; background-position:left bottom; background-size:auto 100%; mix-blend-mode:multiply; }
+  `;
+  document.head.appendChild(compatCSS);
+  (function checkViewerCSS() {
+    const tl = document.createElement('div');
+    tl.className = 'textLayer';
+    document.body.appendChild(tl);
+    const cs = getComputedStyle(tl);
+    const okPos = cs.position === 'absolute';
+    const okOrigin = cs.transformOrigin.startsWith('0px');
+    document.body.removeChild(tl);
+    if (!okPos || !okOrigin) {
+      console.warn('[AFT] pdf_viewer.css likely mismatched; applying compat shims');
+    }
+  })();
   const _stylesUrl = extURL('styles.js');
   if (!_stylesUrl) return;
   const { defaultStyleWords, config } = await import(_stylesUrl);
@@ -1751,6 +1798,14 @@ async function main(host = {}, fetchUrlOverride) {
   eventBus.on('pagesloaded',        () => loader.remove());
   eventBus.on('pagesinit',          () => loader.remove());
   eventBus.on('documentloadfailed', () => loader.remove());
+  eventBus.on('pagerendered', ({ pageNumber }) => {
+    const pv = pdfViewer._pages[pageNumber - 1];
+    const c  = pv?.div?.querySelector('canvas')?.getBoundingClientRect();
+    const t  = pv?.textLayer?.textLayerDiv?.getBoundingClientRect();
+    if (!c || !t) return;
+    console.log(`[AFT] p${pageNumber} dw/dh:`,
+      (c.width - t.width).toFixed(3), (c.height - t.height).toFixed(3));
+  });
   const fix = document.createElement('style');
   fix.textContent = `
     .pdfViewer .textLayer,

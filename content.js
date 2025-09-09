@@ -1470,7 +1470,20 @@ async function main(host = {}, fetchUrlOverride) {
   const pdfjsViewer = await import(_pdfViewerUrl);
   console.log('[pdfjs]', pdfjsLib.version);          // e.g., '4.x.y'
   console.log('[pdfjs-viewer]', pdfjsViewer.version);
+  console.log('[viewer exports]', Object.keys(pdfjsViewer));
+  console.log('[has PDFViewer, EventBus?]',
+    typeof pdfjsViewer.PDFViewer,
+    typeof pdfjsViewer.EventBus
+  );
   console.log('[AFT] viewer CSS href', link.href);
+  setTimeout(() => {
+    const sheet = [...document.styleSheets].find(s => s.href && s.href.includes('pdf_viewer.css'));
+    let hasTextLayer = false;
+    try {
+      hasTextLayer = sheet ? [...sheet.cssRules].some(r => (r.selectorText||'').includes('.textLayer')) : false;
+    } catch { /* cross-origin read might fail; ignore */ }
+    console.log('[AFT] viewer CSS has .textLayer rules?', hasTextLayer);
+  }, 0);
   pdfjsLib.GlobalWorkerOptions.workerSrc = _pdfWorkerUrl;
   const { PDFViewer, PDFLinkService, EventBus } = pdfjsViewer;
   let embed = embedEl;

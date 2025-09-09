@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "pdfjs-dist": "^5.3.31"
+  },
+  "devDependencies": {
+    "mark.js": "^8.11.1"
+  }
+}

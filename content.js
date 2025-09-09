@@ -848,13 +848,17 @@ async function main(host = {}, fetchUrlOverride) {
   `;
   document.head.appendChild(compatCSS);
   (function checkViewerCSS() {
-    const tl = document.createElement('div');
-    tl.className = 'textLayer';
-    document.body.appendChild(tl);
+    const root = document.createElement('div');
+    root.style.cssText = 'position:fixed;left:-99999px;top:-99999px;'; // offscreen
+    const viewer = document.createElement('div'); viewer.className = 'pdfViewer';
+    const page = document.createElement('div'); page.className = 'page';
+    const tl = document.createElement('div'); tl.className = 'textLayer';
+    page.appendChild(tl); viewer.appendChild(page); root.appendChild(viewer);
+    document.body.appendChild(root);
     const cs = getComputedStyle(tl);
     const okPos = cs.position === 'absolute';
-    const okOrigin = cs.transformOrigin.startsWith('0px');
-    document.body.removeChild(tl);
+    const okOrigin = (cs.transformOrigin || '').startsWith('0px');
+    document.body.removeChild(root);
     if (!okPos || !okOrigin) {
       console.warn('[AFT] pdf_viewer.css likely mismatched; applying compat shims');
     }

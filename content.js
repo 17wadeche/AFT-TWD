@@ -1470,6 +1470,7 @@ async function main(host = {}, fetchUrlOverride) {
   const pdfjsViewer = await import(_pdfViewerUrl);
   console.log('[pdfjs]', pdfjsLib.version);          // e.g., '4.x.y'
   console.log('[pdfjs-viewer]', pdfjsViewer.version);
+  console.log('[AFT] viewer CSS href', link.href);
   pdfjsLib.GlobalWorkerOptions.workerSrc = _pdfWorkerUrl;
   const { PDFViewer, PDFLinkService, EventBus } = pdfjsViewer;
   let embed = embedEl;

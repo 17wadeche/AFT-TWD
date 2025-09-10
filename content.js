@@ -363,7 +363,12 @@ async function fetchPdfBytes(url) {
   const viaBg = async () => new Promise((resolve, reject) => {
     if (!chrome?.runtime?.id) return reject(new Error('extension context invalidated'));
     try {
-      chrome.runtime.sendMessage({ type: 'aftFetch', url, orgHost: location.hostname }, res => {
+      const h = new URL(url, location.href).hostname;
+      const guessLightning =
+        h.endsWith('.file.force.com')      ? h.replace('.file.force.com', '.lightning.force.com') :
+        h.endsWith('.content.force.com')   ? h.replace('.content.force.com', '.lightning.force.com') :
+        h;
+      chrome.runtime.sendMessage({ type: 'aftFetch', url, orgHost: guessLightning }, res => {
         if (res?.ok) {
           if (DEBUG) console.debug('[AFT] bg fetch',
             { status: res.status, ct: res.ct, url: res.url, bytes: res.buf?.length || 0 });
@@ -1750,11 +1755,21 @@ async function main(host = {}, fetchUrlOverride) {
     console.log('[AFT] fetched PDF bytes:', data.byteLength, 'from', fetchUrl);
   } catch (err) {
     DEBUG ? console.debug('[AFT] PDF fetch failed:', err) : console.warn('[AFT] PDF fetch failed:', err);
+    loader.remove();
+    const msg = document.createElement('div');
+    msg.style.cssText = 'color:#fff;font:14px/1.4 system-ui, sans-serif;margin:24px;';
+    msg.textContent = 'Error fetching PDF: ' + (err && err.message ? err.message : String(err));
+    container.appendChild(msg);
     return;
   }
   if (!(data && data.length >= 5 &&
         data[0] === 0x25 && data[1] === 0x50 && data[2] === 0x44 && data[3] === 0x46 && data[4] === 0x2D)) {
     console.warn('[AFT] Not a PDF (did you get a login page or HTML redirect?) from', fetchUrl);
+    loader.remove();
+    const msg = document.createElement('div');
+    msg.style.cssText = 'color:#fff;font:14px/1.4 system-ui, sans-serif;margin:24px;';
+    msg.textContent = 'Expected a PDF but got something else. If this is a Salesforce file, make sure you are logged in to the org and try again.';
+    container.appendChild(msg);
     return;
   }
   const pdfDoc = await pdfjsLib.getDocument({ data }).promise;

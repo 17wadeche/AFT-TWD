@@ -5,35 +5,66 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ ok: true });
     return;
   }
+  if (msg.type === 'aftOpenViewer' && msg.url) {
+    chrome.tabs.create({ url: msg.url });
+    sendResponse({ ok: true });
+    return;
+  }
   if (msg.type !== 'aftFetch') return;
   (async () => {
     try {
-      let resp;
-      if (/\.force\.com$/.test(new URL(msg.url).hostname) || /\/sfc\/servlet\.shepherd\//.test(msg.url)) {
-        const ab = await fetchSalesforcePdf(msg.url, new URL(msg.url).hostname);
-        resp = new Response(ab, { headers: { 'Content-Type': 'application/pdf' }, status: 200 });
+      const needsSf = /(?:^|\.)force\.com$/i.test(new URL(msg.url).hostname) ||
+                      /\/sfc\/servlet\.shepherd\//.test(msg.url);
+      let u8;
+      let respMeta = { ok: true, status: 200, url: msg.url, ct: 'application/pdf' };
+      if (needsSf) {
+        const rawHost = new URL(msg.url).hostname;
+        const candidates = [
+          msg.orgHost,
+          rawHost,
+          rawHost.replace('.file.force.com', '.lightning.force.com'),
+          rawHost.replace('.content.force.com', '.lightning.force.com')
+        ].filter(Boolean);
+        let lastErr;
+        for (const host of candidates) {
+          try {
+            const ab = await fetchSalesforcePdf(msg.url, host);
+            u8 = new Uint8Array(ab);
+            break;
+          } catch (e) {
+            lastErr = e;
+          }
+        }
+        if (!u8) throw lastErr || new Error('Failed to fetch Salesforce PDF');
       } else {
-        resp = await fetch(msg.url, {
+        const resp = await fetch(msg.url, {
           credentials: 'include',
           redirect: 'follow',
           cache: 'no-store',
           headers: { 'Accept': 'application/pdf,*/*;q=0.8' }
         });
+        const ab = await resp.arrayBuffer();
+        u8 = new Uint8Array(ab);
+        respMeta = {
+          ok: resp.ok,
+          status: resp.status,
+          url: resp.url,
+          ct: resp.headers.get('content-type') || ''
+        };
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
       }
-      const ab = await resp.arrayBuffer();
-      const u8 = new Uint8Array(ab);
       sendResponse({
-        ok: resp.ok,
-        status: resp.status,
-        ct: resp.headers.get('content-type') || '',
-        url: resp.url,
-        buf: Array.from(u8) // keep your existing shape
+        ok: true,
+        status: respMeta.status,
+        ct: respMeta.ct,
+        url: respMeta.url,
+        buf: Array.from(u8)
       });
     } catch (e) {
       sendResponse({ ok: false, error: String(e) });
     }
   })();
-  return true; // keep the message channel open for async
+  return true; 
 });
 async function fetchSalesforcePdf(url, orgHost) {
   let res = await fetch(url, {

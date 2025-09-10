@@ -1,14 +1,25 @@
-// background.js
+// sw.js
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'aftOpenViewer' && msg.url) {
+    chrome.tabs.create({ url: msg.url });
+    sendResponse({ ok: true });
+    return;
+  }
   if (msg.type !== 'aftFetch') return;
   (async () => {
     try {
-      const resp = await fetch(msg.url, {
-        credentials: 'include',
-        redirect: 'follow',
-        cache: 'no-store',
-        headers: { 'Accept': 'application/pdf,*/*;q=0.8' }
-      });
+      let resp;
+      if (/\.force\.com$/.test(new URL(msg.url).hostname) || /\/sfc\/servlet\.shepherd\//.test(msg.url)) {
+        const ab = await fetchSalesforcePdf(msg.url, new URL(msg.url).hostname);
+        resp = new Response(ab, { headers: { 'Content-Type': 'application/pdf' }, status: 200 });
+      } else {
+        resp = await fetch(msg.url, {
+          credentials: 'include',
+          redirect: 'follow',
+          cache: 'no-store',
+          headers: { 'Accept': 'application/pdf,*/*;q=0.8' }
+        });
+      }
       const ab = await resp.arrayBuffer();
       const u8 = new Uint8Array(ab);
       sendResponse({

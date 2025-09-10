@@ -31,7 +31,7 @@ const DEBUG = localStorage.getItem('AFT_DEBUG') === '1';
       const extViewerBase = extURL('viewer.html');
       if (!extViewerBase) return;
       const pdfUrl = location.href.replace(/#noaft$/, '');
-      location.href = extViewerBase + '?src=' + encodeURIComponent(pdfUrl);
+      window.open(extViewerBase + '?src=' + encodeURIComponent(pdfUrl), '_blank', 'noopener,noreferrer');
     };
     document.body.appendChild(btn);
   }
@@ -52,7 +52,11 @@ const DEBUG = localStorage.getItem('AFT_DEBUG') === '1';
     if (location.hash === '#noaft') return;
     if ((document.contentType || '').toLowerCase() === 'application/pdf') {
       const target = extViewerBase + '?src=' + encodeURIComponent(location.href);
-      location.replace(target);
+      try {
+        chrome.runtime.sendMessage({ type: 'aftOpenViewer', url: target });
+      } catch {
+        window.open(target, '_blank', 'noopener,noreferrer');
+      }
     }
   } catch (err) {
     console.warn('[AFT] redirect shim error:', err);
@@ -300,7 +304,16 @@ customRules = customRules
       background:#ff0; color:#000; font-weight:bold;
       cursor:pointer; border:1px solid #888; border-radius:4px;
     `;
-    btn.onclick = () => { main({}, pdfUrl); };
+    btn.onclick = () => {
+      const extViewerBase = extURL('viewer.html');
+      if (!extViewerBase) return;
+      const target = extViewerBase + '?src=' + encodeURIComponent(pdfUrl);
+      try {
+        chrome.runtime.sendMessage({ type: 'aftOpenViewer', url: target });
+      } catch {
+        window.open(target, '_blank', 'noopener,noreferrer');
+      }
+    };
     document.body.appendChild(btn);
   }
   const scanNode = (root) => {

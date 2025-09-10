@@ -7,7 +7,7 @@
     "service_worker": "sw.js",
     "type": "module"
   },
-  "permissions": ["storage", "cookies"],
+  "permissions": ["storage", "cookies", "tabs"],
   "host_permissions": [
     "https://*.lightning.force.com/*",
     "https://*.file.force.com/*",

@@ -379,6 +379,31 @@ async function main(host = {}, fetchUrlOverride) {
   const HILITE_Y_OFFSET   = 0; // move highlights up a bit
   const UNDERLINE_Y_OFFSET= 0;
   const { viewerEl = null, embedEl = null } = host;
+  function getTextLayer(pageEl) {
+    return pageEl.querySelector('.textLayer');
+  }
+  function getHighlightLayer(pageEl) {
+    let hl = pageEl.querySelector('.aftHighlightLayer');
+      if (!hl) {
+        hl = document.createElement('div');
+        hl.className = 'aftHighlightLayer';
+        const textLayer = getTextLayer(pageEl);
+        const canvasWrapper = pageEl.querySelector('.canvasWrapper');
+        Object.assign(hl.style, {
+          position: 'absolute',
+          top: 0, left: 0, width: '100%', height: '100%',
+          pointerEvents: 'none',
+        });
+        if (textLayer?.parentNode) {
+          textLayer.parentNode.insertBefore(hl, textLayer); 
+        } else if (canvasWrapper?.parentNode) {
+          canvasWrapper.parentNode.insertBefore(hl, canvasWrapper.nextSibling);
+        } else {
+          pageEl.appendChild(hl);
+        }
+      }
+      return hl;
+    }
   function getPageScale(pageEl) {
     let scale = 1;
     const m = pageEl?.style?.transform?.match(/scale\(([^)]+)\)/);
@@ -386,23 +411,23 @@ async function main(host = {}, fetchUrlOverride) {
     return scale;
   }
   function flashRectsOnPage(pageEl, rects) {
-    const layer = pageEl.querySelector('.textLayer');
+    const layer = getTextLayer(pageEl);
     if (!layer) return;
+    const hiLayer = getHighlightLayer(pageEl);
     const layerRect = layer.getBoundingClientRect();
     const overlays = [];
-    const scale = getPageScale(pageEl); // Keep the scale calculation
+    const scale = getPageScale(pageEl);
     rects.forEach(r => {
       const box = document.createElement('div');
       box.className = 'aft-ql-flash';
       box.style.cssText = `
         position:absolute;
-        /* The main calculation is now simpler and more accurate */
         left:${(r.left - layerRect.left)}px;
         top:${(r.top  - layerRect.top) + Math.round(HILITE_Y_OFFSET * scale)}px;
         width:${r.width}px; height:${r.height}px;
-        pointer-events:none; z-index:9; mix-blend-mode:multiply;
+        pointer-events:none; mix-blend-mode:multiply; z-index:1;
       `;
-      layer.appendChild(box);
+      hiLayer.appendChild(box); // <-- append to highlight layer
       overlays.push(box);
     });
     setTimeout(() => overlays.forEach(o => o.remove()), 1600);
@@ -1286,9 +1311,10 @@ async function main(host = {}, fetchUrlOverride) {
         : NodeFilter.FILTER_REJECT 
       }
     );
-    const layer = page.querySelector('.textLayer');
-    if (!layer) return;
-    const layerRect = layer.getBoundingClientRect();
+    const textLayer = page.querySelector('.textLayer');
+    if (!textLayer) return;
+    const hiLayer = getHighlightLayer(page);
+    const layerRect = textLayer.getBoundingClientRect();
     const jobsByKey = Object.create(null);
     for (let textNode; (textNode = walker.nextNode()); ) {
       const text = textNode.data;
@@ -1357,7 +1383,7 @@ async function main(host = {}, fetchUrlOverride) {
           ul.style.width = `${uw}px`;
           ul.style.height= `4px`;
           ul.style.backgroundImage = makeWavyDataURI(ulColor, 2, 6);
-          page.appendChild(ul);
+          hiLayer.appendChild(ul);
         }
       }
       range.detach();
@@ -1771,6 +1797,9 @@ async function main(host = {}, fetchUrlOverride) {
       opacity: .35;            /* translucent highlight */ 
       border-radius: 2px;
     }
+    .page .canvasWrapper { z-index: 0 !important; }
+    .page .aftHighlightLayer { z-index: 1 !important; }
+    .page .textLayer { z-index: 2 !important; }
   `;
   fix.textContent += `
     @keyframes pulseHighlight {
@@ -1941,18 +1970,13 @@ async function main(host = {}, fetchUrlOverride) {
     toggle.textContent = 'Open Original';
   }
   toggle.onclick = () => {
-    if (embed) {
-      embed.style.display = '';
-    } else if (window.__AFT_FETCH_URL) {
-      location.href = window.__AFT_FETCH_URL + (window.__AFT_FETCH_URL.includes('#') ? '' : '#noaft');
-      return;
-    }
+    if (embed) embed.style.display = '';
     container?.remove();
     hlPanel?.remove();
     customPanel?.remove();
     toggle?.remove();
     document.body.classList.remove('aft-active');
     styleTag?.remove();
-    link?.remove();
+    link?.remove(); // pdf_viewer.css <link>
   };
 }

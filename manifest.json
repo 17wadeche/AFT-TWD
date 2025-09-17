@@ -9,7 +9,8 @@
         "https://cpic1cs.corp.medtronic.com:8008/*",
         "https://crmstage.medtronic.com/*",
         "https://crm.medtronic.com/*",
-        "https://medtronicinctwd--dev.sandbox.lightning.force.com/*"
+        "https://medtronicinctwd--dev.sandbox.lightning.force.com/*",
+        "https://*.lightning.force.com/*"
       ],
       "js": ["content.js"],
       "type": "module",
@@ -21,7 +22,8 @@
     "https://cpic1cs.corp.medtronic.com:8008/*",
     "https://crmstage.medtronic.com/*",
     "https://crm.medtronic.com/*",
-    "https://medtronicinctwd--dev.sandbox.lightning.force.com/*"
+    "https://medtronicinctwd--dev.sandbox.lightning.force.com/*",
+    "https://*.lightning.force.com/*"
   ],
   "web_accessible_resources": [
     {
@@ -39,7 +41,8 @@
         "https://cpic1cs.corp.medtronic.com:8008/*",
         "https://crmstage.medtronic.com/*",
         "https://crm.medtronic.com/*",
-        "https://medtronicinctwd--dev.sandbox.lightning.force.com/*"
+        "https://medtronicinctwd--dev.sandbox.lightning.force.com/*",
+        "https://*.lightning.force.com/*"
       ]
     }
   ]

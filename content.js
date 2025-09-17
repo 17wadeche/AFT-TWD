@@ -1203,7 +1203,7 @@ async function main(host = {}, fetchUrlOverride) {
   const toggle   = document.createElement('button');
   toggle.id = 'aftToggle';
   [buSelect, ouSelect].forEach(s => s.className = 'modern-select');
-  toggle.textContent = 'Open Original';
+  toggle.textContent = 'Close';
   const addBtn      = document.createElement('button');
   addBtn.textContent = 'Edit Personal Styles';
   const customChk   = document.createElement('input');
@@ -2315,9 +2315,8 @@ async function main(host = {}, fetchUrlOverride) {
   }, 500);
   const hasEmbedForToggle = !!embed;
   if (!hasEmbedForToggle) {
-    toggle.textContent = 'Open Original';
+    toggle.textContent = 'Close';
   }
-
   toggle.onclick = () => {
     if (wrapper && embed) {
       wrapper.replaceWith(embed);

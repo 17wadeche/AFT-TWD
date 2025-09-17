@@ -157,14 +157,19 @@ function getActiveRoots() {
       pick.id = PICK_ID;
       pick.setAttribute('aria-label', 'Pick a PDF');
       pick.style.cssText = `
-        position:fixed; top:64px; right:64px;
+        position:fixed; bottom:24px; right:24px;
         z-index:2147483647;
-        width:40px; height:40px; padding:0;
+        width:44px; height:44px; padding:0;
         display:grid; place-items:center;
-        background:#fff; color:#000;
-        border:1px solid #e5e7eb; border-radius:10px; cursor:pointer;
-        box-shadow:0 4px 12px rgba(0,0,0,.12);
-        transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
+        background: rgba(255,255,255,.72);
+        backdrop-filter: blur(10px) saturate(120%);
+        -webkit-backdrop-filter: blur(10px) saturate(120%);
+        color:#111;
+        border:1px solid rgba(0,0,0,.08);
+        border-radius:12px; cursor:pointer;
+        box-shadow:0 8px 24px rgba(0,0,0,.16);
+        transition: transform .12s ease, box-shadow .12s ease,
+                    background .12s ease, border-color .12s ease, opacity .12s ease;
       `;
       pick.innerHTML = `
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
@@ -174,12 +179,21 @@ function getActiveRoots() {
         </svg>
       `;
       pick.addEventListener('mouseenter', () => {
-        pick.style.boxShadow = '0 6px 18px rgba(0,0,0,.16)';
+        pick.style.background = 'rgba(255,255,255,.86)';
+        pick.style.boxShadow = '0 10px 28px rgba(0,0,0,.20)';
         pick.style.transform = 'translateY(-1px)';
       });
       pick.addEventListener('mouseleave', () => {
-        pick.style.boxShadow = '0 4px 12px rgba(0,0,0,.12)';
+        pick.style.background = 'rgba(255,255,255,.72)';
+        pick.style.boxShadow = '0 8px 24px rgba(0,0,0,.16)';
         pick.style.transform = 'none';
+      });
+      pick.addEventListener('mousedown', () => {
+        pick.style.transform = 'translateY(0)';
+        pick.style.opacity = '0.95';
+      });
+      pick.addEventListener('mouseup', () => {
+        pick.style.opacity = '1';
       });
       pick.onclick = () => {
         const items = availablePdfItems();

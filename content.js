@@ -57,7 +57,7 @@ function queryAllDeep(selector, root = document) {
   function collectPdfLinks() {
     const seen = new Set();
     const out = [];
-    queryAllDeep('div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"], div[role="dialog"] button[title="Download"], div[role="dialog"] button[aria-label="Download"]')
+    queryAllDeep('a[title="Download"], a[aria-label="Download"], button[title="Download"], button[aria-label="Download"]')
       .forEach(a => {
         const href = normalizeToPdf(a.getAttribute('href') || a.getAttribute('data-href') || '');
         if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Download', href }); }
@@ -77,9 +77,10 @@ function queryAllDeep(selector, root = document) {
         const name = (a.textContent || a.getAttribute('title') || 'File').trim();
         if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
       });
-    queryAllDeep('div[role="dialog"] iframe[src*="/sfc/servlet.shepherd/"], div[role="dialog"] iframe[src*="/sfcdoc/"]')
+    queryAllDeep('iframe[src*="/sfc/servlet.shepherd/"], iframe[src*="/sfcdoc/"], iframe[data-src*="/sfc/servlet.shepherd/"], iframe[data-src*="/sfcdoc/"]')
       .forEach(ifr => {
-        const href = normalizeToPdf(ifr.src);
+        const raw = ifr.getAttribute('src') || ifr.getAttribute('data-src') || '';
+        const href = normalizeToPdf(raw);
         if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Current preview', href }); }
       });
     queryAllDeep('a[href*="/lightning/r/ContentVersion/"]')
@@ -88,19 +89,26 @@ function queryAllDeep(selector, root = document) {
         const name = (a.textContent || a.getAttribute('title') || 'File').trim();
         if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
       });
-    queryAllDeep('[data-recordid^="068"]')
+    queryAllDeep('[data-recordid^="068"], [data-recordid^="069"]')
       .forEach(el => {
         const vid = el.getAttribute('data-recordid');
         const href = normalizeToPdf(vid);
         const name = (el.textContent || el.getAttribute('title') || 'File').trim();
         if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
       });
-    queryAllDeep('a[href*="/sfc/servlet.shepherd/version/"]')
+    queryAllDeep('a[href*="/sfc/servlet.shepherd/version/"], a[href*="/sfc/servlet.shepherd/document/"]')
       .forEach(a => {
         const href = normalizeToPdf(a.href);
         const name = (a.textContent || a.getAttribute('title') || 'File').trim();
         if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
       });
+    queryAllDeep('[data-url*="/sfc/servlet.shepherd/"], [data-href*="/sfc/servlet.shepherd/"]')
+    .forEach(el => {
+      const raw = el.getAttribute('data-url') || el.getAttribute('data-href') || '';
+      const href = normalizeToPdf(raw);
+      const name = (el.getAttribute('title') || el.textContent || 'File').trim();
+      if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
+    });
     return out;
   }
   AFT_LOG('Download anchors:', queryAllDeep('div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"]').length);
@@ -159,7 +167,7 @@ function queryAllDeep(selector, root = document) {
   function normalizeToPdf(url) {
     if (!url) return '';
     try {
-      if (/^068[0-9A-Za-z]{12,18}$/i.test(url)) {
+      if (/^(068|069)[0-9A-Za-z]{12,18}$/i.test(url)) {
         return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${url}`;
       }
       const u = new URL(url);
@@ -175,7 +183,7 @@ function queryAllDeep(selector, root = document) {
       m = u.pathname.match(/\/lightning\/r\/ContentVersion\/([0-9A-Za-z]{15,18})/);
       if (m) return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${m[1]}`;
       const vid = u.searchParams.get('versionId') || u.searchParams.get('id');
-      if (vid && /^068[0-9A-Za-z]{12,18}$/.test(vid)) {
+      if (vid && /^(068|069)[0-9A-Za-z]{12,18}$/i.test(vid)) {
         return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${vid}`;
       }
       return url;

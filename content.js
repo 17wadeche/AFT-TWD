@@ -290,8 +290,9 @@ function getActiveRoots() {
             display:flex; align-items:center; gap:8px;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
           `;
+          const display = stripPrefixAndTidy((it.name || '').trim(), common);
           btn.innerHTML = `
-            <span style="flex:1 1 auto; overflow:hidden; text-overflow:ellipsis;">${it.name.replace(/</g,'&lt;')}</span>
+            <span style="flex:1 1 auto; overflow:hidden; text-overflow:ellipsis;">${escHtml(display)}</span>
           `;
           btn.onclick = () => { openStyledWith(it.href); hideMenu(); };
           btn.onmouseenter = () => { btn.style.background = 'rgba(255,255,255,.9)'; btn.style.boxShadow = '0 2px 6px rgba(0,0,0,.10)'; };

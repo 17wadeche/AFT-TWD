@@ -74,6 +74,7 @@ function queryAllDeep(selector, root = document) {
       });
     return out;
   }
+  window.__aftCollectPdfLinks = collectPdfLinks;
   function ensureButtons() {
     if (!document.getElementById(BTN_ID)) {
       const btn = document.createElement('button');
@@ -139,6 +140,8 @@ function queryAllDeep(selector, root = document) {
       return '';
     }
   }
+  window.__aftNormalizeToPdf = normalizeToPdf;
+  window.__aftQueryAllDeep = queryAllDeep;
   const mo = new MutationObserver(ensureButtons);
   mo.observe(document.documentElement, { subtree: true, childList: true });
   setInterval(ensureButtons, 1000);

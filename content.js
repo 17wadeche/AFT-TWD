@@ -249,7 +249,7 @@ function getActiveRoots() {
         const hr = document.createElement('div');
         hr.style.cssText = 'height:1px;background:rgba(0,0,0,.08);margin:6px 0;';
         menu.appendChild(hr);
-        items.forEach((it, i) => {
+        items.forEach((it) => {
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.setAttribute('role', 'menuitem');
@@ -264,8 +264,7 @@ function getActiveRoots() {
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
           `;
           btn.innerHTML = `
-            <span style="flex:0 0 auto; opacity:.7;">${i+1}.</span>
-            <span style="flex:1 1 auto; overflow:hidden; text-overflow:ellipsis;">${it.name}</span>
+            <span style="flex:1 1 auto; overflow:hidden; text-overflow:ellipsis;">${it.name.replace(/</g,'&lt;')}</span>
           `;
           btn.onclick = () => { openStyledWith(it.href); hideMenu(); };
           btn.onmouseenter = () => { btn.style.background = 'rgba(255,255,255,.9)'; btn.style.boxShadow = '0 2px 6px rgba(0,0,0,.10)'; };

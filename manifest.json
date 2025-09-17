@@ -1,34 +1,25 @@
 {
   "manifest_version": 3,
-  "name": "Attachment Formatting Tool",
+  "name": "TWD Attachment Formatting Tool",
   "description": "Formatting Tool for that highlights, bolds and colors words based on the configuration selected for PDF files.",
-  "version": "0.1.9",
-  "background": {
-    "service_worker": "sw.js",
-    "type": "module"
-  },
-  "permissions": ["storage", "cookies", "tabs"],
-  "host_permissions": [
-    "https://*.lightning.force.com/*",
-    "https://*.file.force.com/*",
-    "https://*.content.force.com/*",
-    "https://*.documentforce.com/*",
-    "https://*.salesforce.com/*",
-    "https://cpic1cs.corp.medtronic.com:8008/*",
-    "https://crmstage.medtronic.com/*"
-  ],
+  "version": "0.1.0",
   "content_scripts": [
     {
       "matches": [
-        "https://*.lightning.force.com/*",
         "https://cpic1cs.corp.medtronic.com:8008/*",
-        "https://crmstage.medtronic.com/*"
+        "https://crmstage.medtronic.com/*",
+        "https://crm.medtronic.com/*"
       ],
       "js": ["content.js"],
       "type": "module",
       "run_at": "document_idle",
       "all_frames": true
     }
+  ],
+  "host_permissions": [
+    "https://cpic1cs.corp.medtronic.com:8008/*",
+    "https://crmstage.medtronic.com/*",
+    "https://crm.medtronic.com/*"
   ],
   "web_accessible_resources": [
     {
@@ -43,12 +34,9 @@
         "styles.js"
       ],
       "matches": [
-        "https://*.lightning.force.com/*",
-        "https://*.file.force.com/*",
-        "https://*.content.force.com/*",
-        "https://*.documentforce.com/*",
         "https://cpic1cs.corp.medtronic.com:8008/*",
-        "https://crmstage.medtronic.com/*"
+        "https://crmstage.medtronic.com/*",
+        "https://crm.medtronic.com/*"
       ]
     }
   ]

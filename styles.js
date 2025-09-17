@@ -1,3 +1,15 @@
+export const defaultQuickLinks = [
+  'Device Summary',
+  'Reason for Transmission',
+  'Alert and Event Summary',
+  'Observations',
+  'Notable Data Section',
+  'Notes',
+  'Device Status',
+  'Episodes List',
+  'Other Hardware Notes',
+  'CareAlert Event List'
+];
 const defaultStyleWords = [
   {
     style: 'color:orange',
@@ -96,6 +108,10 @@ const defaultStyleWords = [
       'Imaging Summary of Failure(s)',
       'Imaging Modalities',
       'Lot #',
+      'Lot',
+      'model',
+      'Serial',
+      'return',
       'Were hardware parts replaced?',
       'Returned Unused',
       'Mechanical Inspection',
@@ -127,6 +143,10 @@ const defaultStyleWords = [
   {
     style: 'color:red',
     words: [
+      'title',
+      'additional comments',
+      'intervention',
+      'narrative',
       'Was Medtronic Imaging Aborted',
       'This is a test of the interface details font color',
       'This is a test of the interface details font color',
@@ -227,13 +247,18 @@ const config = {
   Xomed: { // BU
     styleWords: [
       {
-        style: 'color:orange',
+        style: 'color:green',
         words: [
+          'WEBMREMOTEWS Service Notification interface update',
+          'WEBREMOTEWS MPXR interface update',
+          'WEBREMOTEWS INTERFACE UPDATE',
           'Subject Code',
           'Damage Code',
           'Cause Code',
           'Object Part Code',
           'Date of Pick Up',
+          'Email',
+          'E-mail',
           'email',
           'e-mail',
           'To the following address',
@@ -253,41 +278,80 @@ const config = {
           'Cause Code',
           'Object Part Code',
           'Date of Pick Up',
+          'Email',
+          'E-mail',
           'email',
           'e-mail',
           'To the following address',
           'Complaint Source',
-          'What symptoms were observed / why is service being requested?'
+          'What symptoms were observed / why is service being requested?',
+          'EMAIL',
+          'E-MAIL'
         ]
       },
       {
         style: 'color:purple',
         words: [
+          'Contact',
           'contact',
+          'Facility ID',
           'facility ID',
+          'Account',
           'account',
+          'Surgeon',
           'surgeon',
+          'Initial Reporter',
           'initial reporter',
+          'Initial reporter',
+          'Physician',
           'physician'
         ]
       },
       {
         style: 'background:yellow',
         words: [
+          'Heat',
           'heat',
+          'Hot',
           'hot',
+          'heating',
+          'Heating',
+          'Heated',
           'heated',
+          'Broke',
           'broke',
+          'Broken',
+          'broken',
+          'Break',
           'break',
+          'Fragments',
           'fragments',
           'Methodology',
+          'Death',
           'death',
+          'Injury',
           'injury',
+          'HOT',
+          'HEAT',
           'warm',
+          'WARM',
+          'Warm',
+          'BROKE',
+          'BREAK',
           'FRAGMENT',
+          'DEATH',
+          'INJURY',
+          'Notify',
+          'NOTIFY',
           'notify',
+          'Notified',
+          'NOTIFIED',
           'notified',
+          'Aware',
+          'AWARE',
           'aware',
+          'Correct',
+          'CORRECT',
           'correct',
           'Deletion flag is set for the notification'
         ]
@@ -327,7 +391,6 @@ const config = {
           'EMI',
           '???',
           'Perforation',
-          'Perfor',
           'Dislodge',
           'TWOS',
           'FFRW',
@@ -361,6 +424,18 @@ const config = {
       }
     ],
     'Cardiac Rhythm Management': {
+      quickLinks: [
+        'Device Summary',
+        'Reason for Transmission',
+        'Alert and Event Summary',
+        'Observations',
+        'Notable Data Section',
+        'Notes',
+        'Device Status',
+        'Episodes List',
+        'Other Hardware Notes',
+        'CareAlert Event List'
+      ],
       styleWords: [
         {
           style: 'background:yellow',
@@ -395,9 +470,11 @@ const config = {
   'CV-SH': { // BU
     'Cardiac Surgery': { // OU
       styleWords: defaultStyleWords,
+      quickLinks: ['Medtronic']
     },
     'Structural Heart and Aortic': { // OU
       styleWords: defaultStyleWords,
+      quickLinks: ['']
     }
   },
   'CV-SR': { // BU

@@ -1,18 +1,10 @@
 // content.js
+try { globalThis.DEBUG ??= false; } catch { }
 const ALLOWED_PREFIXES = [
   'https://cpic1cs.corp.medtronic.com:8008/sap/bc/contentserver/',
-  'https://crmstage.medtronic.com/sap/bc/contentserver/'
+  'https://crmstage.medtronic.com/sap/bc/contentserver/',
+  'https://crm.medtronic.com/sap/bc/contentserver/'
 ];
-function extURL(path) {
-  try {
-    if (!chrome?.runtime?.id) throw new Error('no runtime id');
-    return chrome.runtime.getURL(path);
-  } catch (e) {
-    if (DEBUG) console.warn('[AFT] runtime unavailable for', path, e);
-    return null;
-  }
-}
-const DEBUG = localStorage.getItem('AFT_DEBUG') === '1';
 (function offerOpenStyledButton() {
   if (location.hash !== '#noaft') return;
   if (!urlIsAllowed(location.href.replace(/#noaft$/, ''))) return;
@@ -22,16 +14,15 @@ const DEBUG = localStorage.getItem('AFT_DEBUG') === '1';
     btn.id = '__aft_open_styled';
     btn.textContent = 'Open Styled';
     btn.style.cssText = `
-      position:fixed; top:16px; right:16px;
+      position:fixed; top:37px; right:16px;
       z-index:2147483647; padding:6px 12px;
       background:#ff0; color:#000; font-weight:bold;
       cursor:pointer; border:1px solid #888; border-radius:4px;
     `;
     btn.onclick = () => {
-      const extViewerBase = extURL('viewer.html');
-      if (!extViewerBase) return;
+      const extViewerBase = chrome.runtime.getURL('viewer.html');
       const pdfUrl = location.href.replace(/#noaft$/, '');
-      window.open(extViewerBase + '?src=' + encodeURIComponent(pdfUrl), '_blank', 'noopener,noreferrer');
+      location.href = extViewerBase + '?src=' + encodeURIComponent(pdfUrl);
     };
     document.body.appendChild(btn);
   }
@@ -44,50 +35,19 @@ const DEBUG = localStorage.getItem('AFT_DEBUG') === '1';
 })();
 (function redirectIfPluginPdf() {
   try {
-    const extViewerBase = extURL('viewer.html');
-    if (!extViewerBase) return;
+    const extViewerBase = chrome.runtime.getURL('viewer.html');
     if (location.href.startsWith(extViewerBase)) return;
     if (window.__AFT_FROM_VIEWER) return;
     if (!urlIsAllowed()) return;
     if (location.hash === '#noaft') return;
     if ((document.contentType || '').toLowerCase() === 'application/pdf') {
       const target = extViewerBase + '?src=' + encodeURIComponent(location.href);
-      try {
-        chrome.runtime.sendMessage({ type: 'aftOpenViewer', url: target });
-      } catch {
-        window.open(target, '_blank', 'noopener,noreferrer');
-      }
+      location.replace(target);
     }
   } catch (err) {
     console.warn('[AFT] redirect shim error:', err);
   }
 })();
-function looksLikePdf(u8) {
-  return u8 && u8.length >= 5 &&
-         u8[0] === 0x25 && u8[1] === 0x50 && u8[2] === 0x44 && u8[3] === 0x46 && u8[4] === 0x2D; // %PDF-
-}
-async function fetchSalesforcePdfWithFallback(url) {
-  const tryUrls = [url];
-  const u = new URL(url, location.href);
-  if (!u.searchParams.has('operationContext')) {
-    const v = new URL(url, location.href);
-    v.searchParams.set('operationContext', 'CHATTER');
-    tryUrls.push(v.href);
-  }
-  const contentId = u.searchParams.get('contentId');
-  if (contentId) {
-    tryUrls.unshift(`${u.origin}/sfc/servlet.shepherd/document/download/${contentId}`);
-  }
-  for (const candidate of tryUrls) {
-    try {
-      const bytes = await fetchPdfBytes(candidate);
-      if (looksLikePdf(bytes)) return bytes;
-    } catch (e) {
-      if (DEBUG) console.debug('[AFT] fallback try failed for', candidate, e);
-    }
-  }
-  throw new Error('No valid PDF from Salesforce after fallbacks');
-}
 function urlIsAllowed(href = location.href) {
   return ALLOWED_PREFIXES.some(p => href.startsWith(p));
 }
@@ -116,16 +76,9 @@ function findPdfHostElements() {
   return { viewerEl, embedEl };
 }
 function startWhenReady() {
-  if (document.visibilityState === 'unloading') return;
-  window.addEventListener('pagehide', () => { initialized = true; }, { once: true });
   if (location.hash === '#noaft') return;
   if (initialized) return;
   const fromViewer = !!window.__AFT_FROM_VIEWER;
-  if (window.__AFT_FETCH_URL) {
-    initialized = true;
-    main({}, window.__AFT_FETCH_URL);
-    return;
-  }
   if (!fromViewer && !urlIsAllowed()) return;
   const host = fromViewer ? {} : findPdfHostElements();
   if (fromViewer) {
@@ -177,26 +130,13 @@ function makeRegex(word) {
 }
 const FORCE_TEXT_VISIBLE = ';color:#000 !important;-webkit-text-fill-color:#000 !important;';
 const CSS_COLOR_KEYWORDS = [
-  'aliceblue','antiquewhite','aqua','aquamarine','azure','beige','bisque','black',
-  'blanchedalmond','blue','blueviolet','brown','burlywood','cadetblue','chartreuse',
-  'chocolate','coral','cornflowerblue','cornsilk','crimson','cyan','darkblue','darkcyan',
-  'darkgoldenrod','darkgray','darkgreen','darkgrey','darkkhaki','darkmagenta','darkolivegreen',
-  'darkorange','darkorchid','darkred','darksalmon','darkseagreen','darkslateblue','darkslategray',
-  'darkslategrey','darkturquoise','darkviolet','deeppink','deepskyblue','dimgray','dimgrey',
-  'dodgerblue','firebrick','floralwhite','forestgreen','fuchsia','gainsboro','ghostwhite','gold',
-  'goldenrod','gray','green','greenyellow','grey','honeydew','hotpink','indianred','indigo','ivory',
-  'khaki','lavender','lavenderblush','lawngreen','lemonchiffon','lightblue','lightcoral',
-  'lightcyan','lightgoldenrodyellow','lightgray','lightgreen','lightgrey','lightpink','lightsalmon',
-  'lightseagreen','lightskyblue','lightslategray','lightslategrey','lightsteelblue','lightyellow',
-  'lime','limegreen','linen','magenta','maroon','mediumaquamarine','mediumblue','mediumorchid',
-  'mediumpurple','mediumseagreen','mediumslateblue','mediumspringgreen','mediumturquoise',
-  'mediumvioletred','midnightblue','mintcream','mistyrose','moccasin','navajowhite','navy',
-  'oldlace','olive','olivedrab','orange','orangered','orchid','palegoldenrod','palegreen',
-  'paleturquoise','palevioletred','papayawhip','peachpuff','peru','pink','plum','powderblue',
-  'purple','rebeccapurple','red','rosybrown','royalblue','saddlebrown','salmon','sandybrown',
-  'seagreen','seashell','sienna','silver','skyblue','slateblue','slategray','slategrey','snow',
-  'springgreen','steelblue','tan','teal','thistle','tomato','turquoise','violet','wheat','white',
-  'whitesmoke','yellow','yellowgreen'
+  'blue','orange','red','green','purple','pink','yellow','brown','aqua','aquamarine','blueviolet','burlywood','cadetblue','chartreuse','chocolate','coral','cornflowerblue','crimson',
+  'cyan','darkblue','darkcyan','darkgoldenrod','darkgreen','darkmagenta','darkolivegreen','darkorange','darkorchid','darkred','darksalmon','darkseagreen','darkturquoise','darkviolet',
+  'deeppink','deepskyblue','dodgerblue','firebrick','forestgreen','fuchsia','gold','goldenrod','greenyellow','hotpink','indigo','lawngreen','lightblue','lightcoral','lightgreen',
+  'lightpink','lightsalmon','lightseagreen','lightskyblue','lime','limegreen','magenta','maroon','mediumaquamarine','mediumblue','mediumorchid','mediumpurple','mediumseagreen',
+  'mediumslateblue','mediumspringgreen','mediumturquoise','mediumvioletred','midnightblue','navy','olive','olivedrab','orangered','orchid','palegreen','paleturquoise','palevioletred',
+  'peru','plum','rebeccapurple','rosybrown','royalblue','saddlebrown','salmon','sandybrown','seagreen','sienna','silver','skyblue','slateblue','springgreen','steelblue','tan','teal',
+  'thistle','tomato','turquoise','violet','yellowgreen'
 ];
 function parseStyleToFields(styleStr) {
   const s = styleStr.toLowerCase();
@@ -255,147 +195,79 @@ function persistCustomRules() {
 function rebuildRuleStyles() {
   customRules.forEach(r => { r.style = buildStyleFromFields(r.prop, r.color); });
 }
+const __dbg = (...a) => {
+  try { if ((globalThis.DEBUG ?? false) === true) console.debug(...a); } catch {}
+};
 customRules = customRules
   .map(normalizeRuleFromStorage)
   .filter(Boolean);
-(function detectSalesforcePreviewer() {
-  const SF_MATCHERS = [
-    '/sfc/servlet.shepherd/version/renditionDownload', // page images, often ?contentId=...&page=0
-    '/sfc/servlet.shepherd/version/download',          // direct version download
-    '/sfc/servlet.shepherd/document/download',         // direct document download
-    '/sfc/servlet.shepherd/document/render'            // sometimes used in orgs
-  ];
-  const seen = new Set();
-  const getPdfUrlFromSrc = (raw) => {
-    try {
-      const u = new URL(raw, location.origin);
-      if (!u.pathname.includes('/sfc/servlet.shepherd/')) return null;
-      const versionId =
-        u.searchParams.get('versionId') ||
-        (u.pathname.match(/\/version\/download\/([A-Za-z0-9]+)/) || [])[1];
-      if (versionId) {
-        return `${u.origin}/sfc/servlet.shepherd/version/download/${versionId}?operationContext=CHATTER`;
-      }
-      const contentId =
-        u.searchParams.get('contentId') ||
-        u.searchParams.get('documentId') ||
-        (u.pathname.match(/\/document\/download\/([A-Za-z0-9]+)/) || [])[1];
-      if (contentId) {
-        return `${u.origin}/sfc/servlet.shepherd/document/download/${contentId}`;
-      }
-    } catch {}
-    return null;
-  };
-  window.__AFT_getPdfUrlFromSrc = getPdfUrlFromSrc;
-  const tryLaunch = (pdfUrl) => {
-    if (!pdfUrl || seen.has(pdfUrl)) return;
-    seen.add(pdfUrl);
-    window.__AFT_FETCH_URL = pdfUrl; // let the rest of your pipeline run
-    injectSalesforceOpenButton(pdfUrl);
-  };
-  function injectSalesforceOpenButton(pdfUrl) {
-    if (document.getElementById('__aft_open_sf')) return;
-    const btn = document.createElement('button');
-    btn.id = '__aft_open_sf';
-    btn.textContent = 'Open Styled';
-    btn.style.cssText = `
-      position:fixed; top:16px; right:16px;
-      z-index:2147483647; padding:6px 12px;
-      background:#ff0; color:#000; font-weight:bold;
-      cursor:pointer; border:1px solid #888; border-radius:4px;
-    `;
-    btn.onclick = () => {
-      const extViewerBase = extURL('viewer.html');
-      if (!extViewerBase) return;
-      const target = extViewerBase + '?src=' + encodeURIComponent(pdfUrl);
-      try {
-        chrome.runtime.sendMessage({ type: 'aftOpenViewer', url: target });
-      } catch {
-        window.open(target, '_blank', 'noopener,noreferrer');
-      }
-    };
-    document.body.appendChild(btn);
-  }
-  const scanNode = (root) => {
-    const nodes = root.querySelectorAll('img, iframe, object, embed, a, source');
-    for (const el of nodes) {
-      const src = el.getAttribute('src') || el.getAttribute('data-src') || el.getAttribute('href');
-      if (!src) continue;
-      if (!SF_MATCHERS.some(s => src.includes(s))) continue;
-      const pdfUrl = getPdfUrlFromSrc(src);
-      if (pdfUrl) tryLaunch(pdfUrl);
-    }
-  };
-  if (document.readyState !== 'loading') scanNode(document);
-  const mo = new MutationObserver(muts => {
-    for (const m of muts) {
-      if (m.addedNodes) {
-        m.addedNodes.forEach(n => { if (n.nodeType === 1) scanNode(n); });
-      }
-      if (m.type === 'attributes' && (m.attributeName === 'src' || m.attributeName === 'href' || m.attributeName === 'data-src')) {
-        scanNode(document);
-      }
-    }
-  });
-  mo.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: ['src', 'href', 'data-src']
-  });
-  const _ps = history.pushState;
-  const _rp = history.replaceState;
-  const poke = () => setTimeout(() => scanNode(document), 50);
-  history.pushState = function() { const r = _ps.apply(this, arguments); poke(); return r; };
-  history.replaceState = function() { const r = _rp.apply(this, arguments); poke(); return r; };
-  window.addEventListener('popstate', poke, { passive: true });
-})();
-async function fetchPdfBytes(url) {
-  const u = new URL(url, location.href);
-  const isSalesforceDownload =
-    /(?:^|\.)force\.com$/i.test(u.hostname) || u.pathname.includes('/sfc/servlet.shepherd/');
-  const direct = async () => {
-    const resp = await fetch(url, { credentials: 'include' });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const buf = await resp.arrayBuffer();
-    return new Uint8Array(buf); // <-- return TypedArray
-  };
-  const viaBg = async () => new Promise((resolve, reject) => {
-    if (!chrome?.runtime?.id) return reject(new Error('extension context invalidated'));
-    try {
-      const h = new URL(url, location.href).hostname;
-      const guessLightning =
-        h.endsWith('.file.force.com')      ? h.replace('.file.force.com', '.lightning.force.com') :
-        h.endsWith('.content.force.com')   ? h.replace('.content.force.com', '.lightning.force.com') :
-        h;
-      chrome.runtime.sendMessage({ type: 'aftFetch', url, orgHost: guessLightning }, res => {
-        if (res?.ok) {
-          if (DEBUG) console.debug('[AFT] bg fetch',
-            { status: res.status, ct: res.ct, url: res.url, bytes: res.buf?.length || 0 });
-        }
-        if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
-        if (!res || !res.ok) return reject(new Error(res?.error || 'background fetch failed'));
-        resolve(new Uint8Array(res.buf)); 
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
-  if (isSalesforceDownload) {
-    return await viaBg();
-  }
-  try {
-    return await direct();
-  } catch (e) {
-    if (DEBUG) console.debug('[AFT] direct fetch failed, retry via bg:', e);
-    return await viaBg();
-  }
-}
 async function main(host = {}, fetchUrlOverride) {
-  const NUDGE_X = 0;   // bump left/right if needed
-  const NUDGE_Y = 0;  // bump up/down if needed
-  const HILITE_Y_OFFSET   = 0; // move highlights up a bit
-  const UNDERLINE_Y_OFFSET= 0;
+  let wrapper = null;
+  const dpr = window.devicePixelRatio || 1;
+  const pxSnapPos  = v => Math.round(v * dpr) / dpr;
+  const pxSnapSize = v => Math.ceil(v * dpr)  / dpr; 
+  const px  = v => (Math.round(v * dpr) / dpr);
+  let wordsDetectable = null;
+  let _shiftFixComputed = false;
+  let AFT_SHIFT_FIX = 0;
+  function computeShiftFix() {
+    if (_shiftFixComputed) return;
+    const tl = container?.querySelector('.page .textLayer');
+    const page = tl?.closest('.page');
+    if (!tl || !page) return;
+    const a = tl.getBoundingClientRect();
+    const b = page.getBoundingClientRect();
+    const dLeft = Math.round(a.left - b.left);
+    const dTop  = Math.round(a.top  - b.top);
+    AFT_SHIFT_FIX = (dLeft !== 9 || dTop !== 9) ? 1.5 : 0;
+    _shiftFixComputed = true;
+    if ((globalThis.DEBUG ?? false) === true) {
+      console.debug('[AFT] shift-fix check:', { dLeft, dTop, AFT_SHIFT_FIX });
+    }
+  }
+  let _checkingWords = null;
+  function getTextLayer(pageEl) {
+    return pageEl.querySelector('.textLayer');
+  }
+  function ensureLayerContainers(pageEl) {
+    const layer = getTextLayer(pageEl);
+    let bg = layer.querySelector('.aft-bg');
+    let fg = layer.querySelector('.aft-fg');
+    if (!bg) { bg = document.createElement('div'); bg.className = 'aft-bg'; layer.prepend(bg); }
+    if (!fg) { fg = document.createElement('div'); fg.className = 'aft-fg'; layer.append(fg); }
+    return { bg, fg };
+  }
+  function hasNonEmptyTextSpan() {
+    const span = container?.querySelector('.textLayer span');
+    return !!(span && (span.textContent || '').trim());
+  }
+  async function checkWordsDetectable(force = false) {
+    if (!force && (wordsDetectable !== null || _checkingWords)) return wordsDetectable;
+    _checkingWords = (async () => {
+      if (hasNonEmptyTextSpan()) {
+        wordsDetectable = true;
+        return true;
+      }
+      try {
+        for (let n = 1; n <= pdfDoc.numPages; n++) {
+          const t = await getPageText(n);       
+          if (/\p{L}|\p{N}/u.test(t)) {          
+            wordsDetectable = true;
+            return true;
+          }
+        }
+      } catch { }
+      wordsDetectable = false;
+      return false;
+    })();
+    try {
+      await _checkingWords;
+    } finally {
+      _checkingWords = null;
+      updateNoStylesBanner();
+    }
+    return wordsDetectable;
+  }
   const { viewerEl = null, embedEl = null } = host;
   function getPageScale(pageEl) {
     let scale = 1;
@@ -403,24 +275,32 @@ async function main(host = {}, fetchUrlOverride) {
     if (m) scale = parseFloat(m[1]) || 1;
     return scale;
   }
-  function flashRectsOnPage(pageEl, rects) {
-    const layer = pageEl.querySelector('.textLayer');
-    if (!layer) return;
+  function getLayerRect(pageEl) {
+    return pageEl.getBoundingClientRect();
+  }
+  function toLayerLocal(pageEl, clientRect) {
+    const layer = getTextLayer(pageEl);
     const layerRect = layer.getBoundingClientRect();
+    return {
+      x:  clientRect.left   - layerRect.left,
+      y:  clientRect.top    - layerRect.top,
+      w:  clientRect.width,
+      h:  clientRect.height,
+      bottomY: clientRect.bottom - layerRect.top
+    };
+  }
+  function flashRectsOnPage(pageEl, rects) {
+    const { bg } = ensureLayerContainers(pageEl);
     const overlays = [];
-    const scale = getPageScale(pageEl); // Keep the scale calculation
     rects.forEach(r => {
       const box = document.createElement('div');
       box.className = 'aft-ql-flash';
-      box.style.cssText = `
-        position:absolute;
-        /* The main calculation is now simpler and more accurate */
-        left:${(r.left - layerRect.left)}px;
-        top:${(r.top  - layerRect.top) + Math.round(HILITE_Y_OFFSET * scale)}px;
-        width:${r.width}px; height:${r.height}px;
-        pointer-events:none; z-index:9; mix-blend-mode:multiply;
-      `;
-      layer.appendChild(box);
+      const { x, y, w, h } = toLayerLocal(pageEl, r);
+      box.style.left   = x + 'px';
+      box.style.top    = y + 'px';
+      box.style.width  = pxSnapSize(w) + 'px';
+      box.style.height = pxSnapSize(h) + 'px';
+      bg.appendChild(box);
       overlays.push(box);
     });
     setTimeout(() => overlays.forEach(o => o.remove()), 1600);
@@ -479,10 +359,6 @@ async function main(host = {}, fetchUrlOverride) {
     );
     return walker.nextNode();
   }
-  function scrollToLocalY(pageEl, yLocal) {
-    const target = pageEl.offsetTop + Math.max(0, yLocal - 60);
-    container.scrollTo({ top: target, behavior: 'smooth' });
-  }
   function flashFirstSpanMatchOnPage(pageEl, phrase) {
     if (!phrase) return false;
     const pageRect = pageEl.getBoundingClientRect();
@@ -497,9 +373,11 @@ async function main(host = {}, fetchUrlOverride) {
       const rects = Array.from(rng.getClientRects()).filter(r => r.width && r.height);
       try { rng.detach?.(); } catch {}
       if (rects.length) {
-        const yLocal = rects[0].top - pageRect.top; 
+        const layerRect = getLayerRect(pageEl);
+        const scale = getPageScale(pageEl);
+        const yLocal = (rects[0].top - layerRect.top) / scale;
         const target = pageEl.offsetTop + Math.max(0, yLocal - 60);
-        container.scrollTo({ top: target, behavior: "smooth" });
+        container.scrollTo({ top: target, behavior: 'smooth' });
         flashRectsOnPage(pageEl, rects);
         return true;
       }
@@ -552,9 +430,11 @@ async function main(host = {}, fetchUrlOverride) {
           try { r.detach?.(); } catch {}
         }
         if (rects.length) {
-          const yLocal = rects[0].top - pageRect.top;
+          const layerRect = getLayerRect(pageEl);
+          const scale = getPageScale(pageEl);
+          const yLocal = (rects[0].top - layerRect.top) / scale;
           const target = pageEl.offsetTop + Math.max(0, yLocal - 60);
-          container.scrollTo({ top: target, behavior: "smooth" });
+          container.scrollTo({ top: target, behavior: 'smooth' });
           flashRectsOnPage(pageEl, rects);
           return true;
         }
@@ -595,25 +475,6 @@ async function main(host = {}, fetchUrlOverride) {
     }
     return null;
   }
-  function ensureTextLayerRendered(pageNumber) {
-    const pv = pdfViewer._pages?.[pageNumber - 1];
-    if (!pv) return Promise.resolve();
-    if (pv.textLayer && pv.textLayer.renderingDone) return Promise.resolve();
-    return new Promise(resolve => {
-      let done = false;
-      const finish = () => { if (done) return; done = true; cleanup(); resolve(); };
-      const onTL  = ({ pageNumber: n }) => { if (n === pageNumber) finish(); };
-      const onPR  = ({ pageNumber: n }) => { if (n === pageNumber) finish(); };
-      const cleanup = () => {
-        eventBus.off('textlayerrendered', onTL);
-        eventBus.off('pagerendered', onPR);
-        clearTimeout(to);
-      };
-      eventBus.on('textlayerrendered', onTL);
-      eventBus.on('pagerendered', onPR);
-      const to = setTimeout(finish, 1200);
-    });
-  }
   function waitForPageReady(pageNumber, timeout = 1000) {
     return new Promise(resolve => {
       let done = false;
@@ -634,7 +495,6 @@ async function main(host = {}, fetchUrlOverride) {
       const to = setTimeout(finish, timeout); 
     });
   }
-  
   async function jumpTo({ pageNumber, phrase }) {
     if (!pageNumber && phrase) {
       pageNumber = await findPageNumberByPhrase(phrase);
@@ -664,37 +524,41 @@ async function main(host = {}, fetchUrlOverride) {
     return true;
   }
   let container = null;
-  window.__AFT_VERSION = '0.1.3d';
+  window.__AFT_VERSION = '0.1.3e';
   console.log('[AFT] init v' + window.__AFT_VERSION, location.href);
   const AFT_UI_Z = 21474837000;
+  let noStylesBannerEl = null;
+  function updateNoStylesBanner() {
+    const anyStyling =
+      container?.querySelector('.word-highlight, .word-underline, .styled-word');
+    if (!anyStyling) {
+      const isIncompatible = (wordsDetectable === false);
+      const message = isIncompatible
+        ? 'This PDF may not be compatible.'
+        : 'No stylings found.';
+      if (!noStylesBannerEl) {
+        noStylesBannerEl = document.createElement('div');
+        noStylesBannerEl.id = 'aftNoStylesBanner';
+        noStylesBannerEl.style.cssText = `
+          position:fixed; top:0; left:0; right:0; padding:8px 12px;
+          color:#000; text-align:center; font:bold 14px system-ui, sans-serif;
+          z-index:${AFT_UI_Z + 1};
+        `;
+        document.body.appendChild(noStylesBannerEl);
+      }
+      noStylesBannerEl.style.background = isIncompatible ? '#f44336' : '#ffeb3b';
+      noStylesBannerEl.style.border = '1px solid rgba(0,0,0,.2)';
+      noStylesBannerEl.textContent = message;
+      if (wordsDetectable === null) {
+        checkWordsDetectable();
+      }
+    } else {
+      noStylesBannerEl?.remove();
+      noStylesBannerEl = null;
+    }
+  }
   const styleTag = document.createElement('style');
-  const QUICK_LINKS = [
-    'Device Summary',
-    'Reason for Transmission',
-    'Alert and Event Summary',
-    'Observations',
-    'Notable Data Section',
-    'Notes',
-    'Device Status',
-    'Episodes List',
-    'Other Hardware Notes',
-    'CareAlert Event List'
-  ];
   styleTag.textContent = `
-    .page {
-      position: relative !important; /* Establishes the positioning context */
-    }
-    .page .canvasWrapper,
-    .page .textLayer {
-      position: absolute !important;
-      top: 0 !important;
-      left: 0 !important;
-      width: 100% !important;
-      height: 100% !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      border: none !important;
-    }
     .aft-ql-flash { pointer-events: none; }
     .modern-select {
       color: #000;
@@ -718,143 +582,171 @@ async function main(host = {}, fetchUrlOverride) {
       border-color: #4a90e2;
       box-shadow: 0 0 0 2px rgba(74,144,226,0.3);
     }
-      #aftCustomPanel {
-  border-radius: 10px;
-  padding: 12px;
-  background: #fff;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  font-family: system-ui, sans-serif;
-  font-size: 13px;
-  width: 400px;
-}
-#aftCustomPanel input[type="text"],
-#aftCustomPanel select {
-  font-size: 13px;
-  padding: 5px 6px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  width: 100%;
-  box-sizing: border-box;
-}
-#aftCustomPanel input[type="color"] {
-  width: 20px;
-  height: 30px;
-  border: none;
-  background: none;
-  padding: 0;
-}
-#aftCustomPanel button {
-  font-size: 12px;
-  padding: 4px 10px;
-  border: 1px solid #888;
-  border-radius: 4px;
-  background: #f3f3f3;
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-#aftCustomPanel button:hover {
-  background: #e0e0e0;
-}
-#aftCustomPanel hr {
-  border: none;
-  border-top: 1px solid #eee;
-  margin: 8px 0;
-}
-.aft-row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 6px;
-  flex-wrap: wrap;
-}
-.aft-row > * {
-  flex: 1;
-  min-width: 0;
-}
-.aft-row.actions {
-  justify-content: flex-end;
-  margin-top: 4px;
-}
-  #aftQuickLinks {
-    margin-top: 8px;
-  }
-  #aftQuickLinksHeader {
-    font-weight: bold;
-    margin: 8px 0 4px;
-  }
-  .aft-ql-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
-  .aft-ql-btn { width: 100%; }
-  .aft-ql-btn {
-    display: inline-block;
-    padding: 6px 8px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
+  #aftCustomPanel {
+    border-radius: 10px;
+    padding: 12px;
     background: #fff;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    font-family: system-ui, sans-serif;
+    font-size: 13px;
+    width: 400px;
+  }
+  #aftCustomPanel input[type="text"],
+  #aftCustomPanel select {
+    font-size: 13px;
+    padding: 5px 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  #aftCustomPanel input[type="color"] {
+    width: 20px;
+    height: 30px;
+    border: none;
+    background: none;
+    padding: 0;
+  }
+  #aftCustomPanel button {
     font-size: 12px;
-    text-align: left;
+    padding: 4px 10px;
+    border: 1px solid #888;
+    border-radius: 4px;
+    background: #f3f3f3;
     cursor: pointer;
-    box-shadow: 0 1px 3px rgba(0,0,0,.06);
-    transition: transform .04s ease, background .15s ease, border-color .15s ease;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    overflow: hidden;
+    transition: background 0.2s ease;
   }
-  .aft-ql-btn:hover {
-    background: #f7f9ff;
-    border-color: #cfe0ff;
-    transform: translateY(-1px);
+  #aftCustomPanel button:hover {
+    background: #e0e0e0;
   }
-  .aft-ql-notfound {
-    opacity: .7;
+  #aftCustomPanel hr {
+    border: none;
+    border-top: 1px solid #eee;
+    margin: 8px 0;
   }
-  /* Flash highlight for quick-jump */
-  .aft-ql-flash {
-    position: absolute;
-    pointer-events: none;
-    background: rgba(255, 235, 59, .65); /* warm yellow */
-    outline: 1px solid rgba(0,0,0,.12);
-    z-index: 9999;
-    animation: aftQlFlash 1.4s ease-out 1 forwards;
-    mix-blend-mode: multiply;
-
+  .aft-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
   }
-  @keyframes aftQlFlash {
-    0%   { filter: brightness(1.8) saturate(1.6); }
-    60%  { filter: brightness(2.2) saturate(2.0); }
-    100% { filter: brightness(1)   saturate(1);   opacity: .15; }
+  .aft-row > * {
+    flex: 1;
+    min-width: 0;
   }
-  #aftQuickLinks.collapsed .aft-ql-grid { display: none; }
-  #aftQuickLinksHeader {
-    display:flex; align-items:center; justify-content:space-between;
-    cursor:pointer; user-select:none;
+  .aft-row.actions {
+    justify-content: flex-end;
+    margin-top: 4px;
   }
-  #aftQuickLinksHeader .aft-caret {
-    margin-left:8px; transition: transform .15s ease;
-    font-size:12px; opacity:.8;
-  }
-  #aftQuickLinks.collapsed #aftQuickLinksHeader .aft-caret {
-    transform: rotate(-90deg);
-  }
+    #aftQuickLinks {
+      margin-top: 8px;
+    }
+    #aftQuickLinksHeader {
+      font-weight: bold;
+      margin: 8px 0 4px;
+    }
+    .aft-ql-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+    .aft-ql-btn { width: 100%; }
+    .aft-ql-btn {
+      display: inline-block;
+      padding: 6px 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 12px;
+      text-align: left;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,.06);
+      transition: transform .04s ease, background .15s ease, border-color .15s ease;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+    .aft-ql-btn:hover {
+      background: #f7f9ff;
+      border-color: #cfe0ff;
+      transform: translateY(-1px);
+    }
+    .aft-ql-notfound {
+      opacity: .7;
+    }
+    .aft-ql-flash {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(255, 235, 59, .65);
+      outline: 1px solid rgba(0,0,0,.12);
+      z-index: 9999;
+      animation: aftQlFlash 1.4s ease-out 1 forwards;
+      mix-blend-mode: multiply;
+    }
+    @keyframes aftQlFlash {
+      0%   { filter: brightness(1.8) saturate(1.6); }
+      60%  { filter: brightness(2.2) saturate(2.0); }
+      100% { filter: brightness(1)   saturate(1);   opacity: .15; }
+    }
+    #aftQuickLinks.collapsed .aft-ql-grid { display: none; }
+    #aftQuickLinksHeader {
+      display:flex; align-items:center; justify-content:space-between;
+      cursor:pointer; user-select:none;
+    }
+    #aftQuickLinksHeader .aft-caret {
+      margin-left:8px; transition: transform .15s ease;
+      font-size:12px; opacity:.8;
+    }
+    #aftQuickLinks.collapsed #aftQuickLinksHeader .aft-caret {
+      transform: rotate(-90deg);
+    }
+      #aftCustomPanel .aft-btn-black {
+      color:#000 !important;
+      -webkit-text-fill-color:#000 !important;
+      text-shadow:none !important;
+    }
+    #aftCustomPanel .aft-btn-black:hover,
+    #aftCustomPanel .aft-btn-black:active,
+    #aftCustomPanel .aft-btn-black:focus {
+      color:#000 !important;
+      -webkit-text-fill-color:#000 !important;
+    }
+    @media (forced-colors: active) {
+      #aftCustomPanel .aft-btn-black {
+        forced-color-adjust: none;
+        color:#000 !important;
+        background:#f3f3f3 !important;
+        border-color:#888 !important;
+      }
+    }
+  `;
+  styleTag.textContent += `
+    .textLayer { position: absolute; inset: 0; }
+    .textLayer .aft-bg, .textLayer .aft-fg {
+      position: absolute; inset: 0; pointer-events: none;
+    }
   `;
   let showingStyled = true;
   document.head.appendChild(styleTag);
   const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  const _cssUrl = extURL('pdf_viewer.css');
-  if (!_cssUrl) return; // context gone; abort quietly
-  link.href = _cssUrl;
+  link.rel  = 'stylesheet';
+  link.href = chrome.runtime.getURL('pdf_viewer.css');
   document.head.appendChild(link);
-  const _stylesUrl = extURL('styles.js');
-  if (!_stylesUrl) return;
-  const { defaultStyleWords, config } = await import(_stylesUrl);
+  const { defaultStyleWords, config, defaultQuickLinks } = await import(chrome.runtime.getURL('styles.js'));
   let currentBU = localStorage.getItem('highlight_BU') || '';
   let currentOU = localStorage.getItem('highlight_OU') || '';
     function hasBUandOU() {
     return !!(currentBU && currentOU);
+  }
+  function getQuickLinksFor(bu, ou) {
+    if (bu && ou && config[bu] && config[bu][ou] && Array.isArray(config[bu][ou].quickLinks)) {
+      return config[bu][ou].quickLinks.slice();
+    }
+    if (bu && config[bu] && Array.isArray(config[bu].quickLinks)) {
+      return config[bu].quickLinks.slice();
+    }
+    return defaultQuickLinks.slice();
   }
   function updatePersonalUIState() {
     const enabled = hasBUandOU();
@@ -993,6 +885,8 @@ async function main(host = {}, fetchUrlOverride) {
   `;
   customPanelHdr.appendChild(customPanelClose);
   const customPanelBody = document.createElement('div');
+  customPanelBody.style.maxHeight = '50vh';
+  customPanelBody.style.overflow = 'auto';
   customPanel.append(customPanelHdr, customPanelBody);
   function makeColorSelect(selected) {
     const sel = document.createElement('select');
@@ -1060,8 +954,8 @@ async function main(host = {}, fetchUrlOverride) {
         row.appendChild(colorWrap);
         const actionRow = document.createElement('div');
         actionRow.style.cssText='grid-column:1/-1;display:flex;justify-content:flex-end;gap:4px;margin-bottom:2px;';
-        const saveBtn=document.createElement('button'); saveBtn.textContent='Save'; saveBtn.style.fontSize='11px';
-        const delBtn=document.createElement('button'); delBtn.textContent='Delete'; delBtn.style.fontSize='11px';
+        const saveBtn=document.createElement('button'); saveBtn.textContent='Save'; saveBtn.style.fontSize='11px'; saveBtn.classList.add('aft-btn-black');
+        const delBtn=document.createElement('button'); delBtn.textContent='Delete'; delBtn.style.fontSize='11px'; delBtn.classList.add('aft-btn-black');
         actionRow.append(saveBtn,delBtn);
         row.appendChild(actionRow);
         saveBtn.onclick = () => {
@@ -1123,8 +1017,8 @@ async function main(host = {}, fetchUrlOverride) {
     customPanelBody.appendChild(newRow);
     const newRowBtns=document.createElement('div');
     newRowBtns.style.cssText='margin-top:4px;display:flex;justify-content:flex-end;gap:4px;';
-    const newAddBtn=document.createElement('button'); newAddBtn.textContent='Add'; newAddBtn.style.fontSize='11px';
-    const newCancelBtn=document.createElement('button'); newCancelBtn.textContent='Clear'; newCancelBtn.style.fontSize='11px';
+    const newAddBtn=document.createElement('button'); newAddBtn.textContent='Add'; newAddBtn.style.fontSize='11px'; newAddBtn.classList.add('aft-btn-black');
+    const newCancelBtn=document.createElement('button'); newCancelBtn.textContent='Clear'; newCancelBtn.style.fontSize='11px'; newCancelBtn.classList.add('aft-btn-black');
     newRowBtns.append(newCancelBtn,newAddBtn);
     customPanelBody.appendChild(newRowBtns);
     const footer = document.createElement('div');
@@ -1304,9 +1198,6 @@ async function main(host = {}, fetchUrlOverride) {
         : NodeFilter.FILTER_REJECT 
       }
     );
-    const layer = page.querySelector('.textLayer');
-    if (!layer) return;
-    const layerRect = layer.getBoundingClientRect();
     const jobsByKey = Object.create(null);
     for (let textNode; (textNode = walker.nextNode()); ) {
       const text = textNode.data;
@@ -1346,20 +1237,28 @@ async function main(host = {}, fetchUrlOverride) {
       const range = document.createRange();
       range.setStart(node, start);
       range.setEnd(node, end);
+      const pageRect = page.getBoundingClientRect();
+      let scale = 1;
+      const m = page.style?.transform?.match(/scale\(([^)]+)\)/);
+      if (m) scale = parseFloat(m[1]);
       for (const r of range.getClientRects()) {
+        const { x, y, w, h, bottomY } = toLayerLocal(page, r);
+        const { bg } = ensureLayerContainers(page);
         if (hasBg) {
           const box = document.createElement('div');
           box.className = 'word-highlight';
           if (shift) box.classList.add('shift-left');
           if (pulseMode && job.isNew) box.classList.add('pulse');
-          const x = (r.left   - layerRect.left) + NUDGE_X;
-          const y = (r.top    - layerRect.top) + NUDGE_Y + Math.round(HILITE_Y_OFFSET * getPageScale(page));
-          const w = r.width;
-          const h = r.height;
           box.style.cssText = `${style};
-            position:absolute; left:${x}px; top:${y}px; width:${w}px; height:${h}px;
-            pointer-events:none; mix-blend-mode:multiply; z-index:5`;
-          layer.appendChild(box);
+            position:absolute;
+            pointer-events:none;
+            mix-blend-mode:multiply;
+            z-index:5;`;
+          box.style.left   = x + 'px';
+          box.style.top    = y + 'px';
+          box.style.width  = pxSnapSize(w) + 'px';
+          box.style.height = pxSnapSize(h) + 'px';
+          bg.appendChild(box);
         }
         if (hasUL) {
           const ul = document.createElement('div');
@@ -1367,15 +1266,13 @@ async function main(host = {}, fetchUrlOverride) {
           if (shift) ul.classList.add('shift-left');
           if (pulseMode && job.isNew) ul.classList.add('pulse');
           const ulColor = getUnderlineColorFromStyle(style);
-          const ux = (r.left   - layerRect.left) + NUDGE_X;
-          const uy = (r.bottom - layerRect.top - 2) + NUDGE_Y + Math.round(UNDERLINE_Y_OFFSET * getPageScale(page));
-          const uw = r.width;
-          ul.style.left  = `${ux}px`;
-          ul.style.top   = `${uy}px`;
-          ul.style.width = `${uw}px`;
-          ul.style.height= `4px`;
+          const underlineHeight = 4;
+          ul.style.left  = x + 'px';
+          ul.style.top   = (bottomY - underlineHeight) + 'px';
+          ul.style.width = pxSnapSize(w) + 'px';
+          ul.style.height= pxSnapSize(underlineHeight) + 'px';
           ul.style.backgroundImage = makeWavyDataURI(ulColor, 2, 6);
-          page.appendChild(ul);
+          bg.appendChild(ul);
         }
       }
       range.detach();
@@ -1413,6 +1310,11 @@ async function main(host = {}, fetchUrlOverride) {
         !/color\s*:/.test(style) &&
         !isUnderline; 
       wrap.style.cssText = style + (needsForce ? FORCE_TEXT_VISIBLE : '');
+      if (AFT_SHIFT_FIX) {
+        wrap.classList.add('aft-shift');
+        wrap.style.setProperty('--aft-shift-x', AFT_SHIFT_FIX + .33333 + 'px');
+        wrap.style.setProperty('--aft-shift-y', AFT_SHIFT_FIX + 'px');
+      }
       wrap.appendChild(target.cloneNode(true));
       target.parentNode.replaceChild(wrap, target);
     }
@@ -1447,6 +1349,7 @@ async function main(host = {}, fetchUrlOverride) {
       });
     });
     if (pulseMode) setTimeout(() => { pulseMode = false; }, 1000);
+    updateNoStylesBanner();
   }
   function refreshAll() {
     updateStyleWords();
@@ -1465,6 +1368,9 @@ async function main(host = {}, fetchUrlOverride) {
     updateStyleWords();
     clearHighlights(container); 
     renderAllHighlights();
+    const labels = getQuickLinksFor(currentBU, currentOU);
+    renderQuickLinksGrid(labels);
+    computeAndRenderQuickLinks(labels);
   };
   ouSelect.onchange = () => {
     currentOU = ouSelect.value;
@@ -1473,9 +1379,12 @@ async function main(host = {}, fetchUrlOverride) {
     updateStyleWords();
     clearHighlights(container); 
     renderAllHighlights();
+    const labels = getQuickLinksFor(currentBU, currentOU);
+    renderQuickLinksGrid(labels);
+    computeAndRenderQuickLinks(labels);
   };
   Object.assign(toggle.style, {
-    position:'fixed', top:'16px', right:'16px',
+    position:'fixed', top:'37px', right:'16px',
     background:'#ff0', color:'#000', fontWeight:'bold',
     padding:'6px 12px', cursor:'pointer'
   });
@@ -1497,13 +1406,9 @@ async function main(host = {}, fetchUrlOverride) {
     renderAllHighlights();
   });
   updateStyleWords();
-  const _pdfUrl = extURL('pdf.mjs'); 
-  const _pdfViewerUrl = extURL('pdf_viewer.mjs');
-  const _pdfWorkerUrl = extURL('pdf.worker.mjs');
-  if (!_pdfUrl || !_pdfViewerUrl || !_pdfWorkerUrl) return;
-  const pdfjsLib    = await import(_pdfUrl);
-  const pdfjsViewer = await import(_pdfViewerUrl);
-  pdfjsLib.GlobalWorkerOptions.workerSrc = _pdfWorkerUrl;
+  const pdfjsLib    = await import(chrome.runtime.getURL('pdf.mjs'));
+  const pdfjsViewer = await import(chrome.runtime.getURL('pdf_viewer.mjs'));
+  pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('pdf.worker.mjs');
   const { PDFViewer, PDFLinkService, EventBus } = pdfjsViewer;
   let embed = embedEl;
   if (!embed && viewerEl) {
@@ -1519,18 +1424,24 @@ async function main(host = {}, fetchUrlOverride) {
       Math.round(rect?.height || embed.clientHeight || parseInt(embed.getAttribute?.('height') || '0', 10) || 800),
       300
     );
-    Object.assign(container.style, {
+    wrapper = document.createElement('div');
+    Object.assign(wrapper.style, {
       position: 'relative',
       width: '100%',
       maxWidth: '100%',
       height: heightPx + 'px',
-      overflow: 'auto',
-      background: '#000'
     });
-    embed.replaceWith(container);
+    Object.assign(container.style, {
+      position: 'absolute',
+      inset: '0',
+      overflow: 'auto',
+      background: '#000',
+    });
+    embed.replaceWith(wrapper);
+    wrapper.appendChild(container);
   } else {
     Object.assign(container.style, {
-      position: 'fixed',
+      position: 'absolute',
       inset: '0',
       width: '100vw',
       height: '100vh',
@@ -1566,7 +1477,7 @@ async function main(host = {}, fetchUrlOverride) {
       inset: 0;
       border-radius: 50%;
       background: #1804F0;
-      opacity: 0.25;
+      opacity: 0.2;
       filter: blur(10px);
       pointer-events: none;
     }
@@ -1665,19 +1576,15 @@ async function main(host = {}, fetchUrlOverride) {
   const buLabel = document.createElement('label');
   buLabel.textContent = 'BU:';
   buLabel.style.fontWeight = 'bold';
-
   const ouLabel = document.createElement('label');
   ouLabel.textContent = 'OU:';
   ouLabel.style.fontWeight = 'bold';
-
   const buRow = document.createElement('div');
   buRow.className = 'aft-row';
   buRow.append(buLabel, buSelect);
-
   const ouRow = document.createElement('div');
   ouRow.className = 'aft-row';
   ouRow.append(ouLabel, ouSelect);
-
   hlBody.append(
     buRow,
     ouRow,
@@ -1703,21 +1610,27 @@ async function main(host = {}, fetchUrlOverride) {
     localStorage.setItem('aft_ql_collapsed', qlCollapsed ? '1' : '0');
     updateQlCollapseUI();
   });
-  QUICK_LINKS.forEach(label => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'aft-ql-btn';
-    btn.title = `Jump to "${label}"`;
-    btn.textContent = label;
-    btn.onclick = async () => {
-      const ok = await jumpToPhrase(label);
-      if (!ok) {
-        btn.classList.add('aft-ql-notfound');
-        setTimeout(() => btn.classList.remove('aft-ql-notfound'), 900);
-      }
-    };
-    qlGrid.appendChild(btn);
-  });
+  function renderQuickLinksGrid(labels) {
+    qlGrid.innerHTML = '';
+    labels.forEach(label => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'aft-ql-btn';
+      btn.title = `Jump to "${label}"`;
+      btn.textContent = label;
+      btn.onclick = async () => {
+        const ok = await jumpToPhrase(label);
+        if (!ok) {
+          btn.classList.add('aft-ql-notfound');
+          setTimeout(() => btn.classList.remove('aft-ql-notfound'), 900);
+        }
+      };
+      qlGrid.appendChild(btn);
+    });
+    qlWrap.style.display = qlGrid.children.length ? '' : 'none';
+    updateQlCollapseUI();
+  }
+  renderQuickLinksGrid(getQuickLinksFor(currentBU, currentOU));
   qlWrap.append(qlHeader, qlGrid);
   hlBody.appendChild(qlWrap);
   updateQlCollapseUI();
@@ -1744,35 +1657,57 @@ async function main(host = {}, fetchUrlOverride) {
       hlPanel.style.left = '16px';
     }
   };
-  let data, fetchUrl;
+  let data, fetchUrl, resp;
   try {
     fetchUrl = fetchUrlOverride ||
-              (embed && embed.getAttribute && embed.getAttribute('original-url')) ||
-              location.href;
-    data = await (/\/sfc\/servlet\.shepherd\//.test(fetchUrl)
-      ? fetchSalesforcePdfWithFallback(fetchUrl)
-      : fetchPdfBytes(fetchUrl));
+          (embed && embed.getAttribute && embed.getAttribute('original-url')) ||
+          location.href;
+    resp = await fetch(fetchUrl, { credentials: 'include', cache: 'force-cache' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    data = await resp.arrayBuffer();
     console.log('[AFT] fetched PDF bytes:', data.byteLength, 'from', fetchUrl);
-  } catch (err) {
-    DEBUG ? console.debug('[AFT] PDF fetch failed:', err) : console.warn('[AFT] PDF fetch failed:', err);
-    loader.remove();
-    const msg = document.createElement('div');
-    msg.style.cssText = 'color:#fff;font:14px/1.4 system-ui, sans-serif;margin:24px;';
-    msg.textContent = 'Error fetching PDF: ' + (err && err.message ? err.message : String(err));
-    container.appendChild(msg);
+  } 
+  catch (err) {
+    __dbg('[AFT] PDF fetch failed:', err);
     return;
   }
-  if (!(data && data.length >= 5 &&
-        data[0] === 0x25 && data[1] === 0x50 && data[2] === 0x44 && data[3] === 0x46 && data[4] === 0x2D)) {
-    console.warn('[AFT] Not a PDF (did you get a login page or HTML redirect?) from', fetchUrl);
-    loader.remove();
-    const msg = document.createElement('div');
-    msg.style.cssText = 'color:#fff;font:14px/1.4 system-ui, sans-serif;margin:24px;';
-    msg.textContent = 'Expected a PDF but got something else. If this is a Salesforce file, make sure you are logged in to the org and try again.';
-    container.appendChild(msg);
-    return;
+  function parseFilenameFromCD(v) {
+    if (!v) return '';
+    let m = /filename\*\s*=\s*([^;]+)/i.exec(v);
+    if (m) {
+      let s = m[1].trim().replace(/^"(.*)"$/, '$1');
+      const parts = s.split("''");
+      if (parts.length === 2) {
+        try { return decodeURIComponent(parts[1]); } catch {}
+      }
+      try { return decodeURIComponent(s); } catch { return s; }
+    }
+    m = /filename\s*=\s*([^;]+)/i.exec(v);
+    if (m) {
+      let s = m[1].trim().replace(/^"(.*)"$/, '$1');
+      try { return decodeURIComponent(s); } catch { return s; }
+    }
+    return '';
   }
-  const pdfDoc = await pdfjsLib.getDocument({ data }).promise;
+  function getNameFromUrl(u = '') {
+    try {
+      const url = new URL(u);
+      const qpName =
+        url.searchParams.get('filename') ||
+        url.searchParams.get('fileName') ||
+        url.searchParams.get('name') ||
+        url.searchParams.get('download');
+      let last = (url.pathname.split('/').pop() || '').trim();
+      const raw = (qpName || last);
+      return decodeURIComponent(raw).replace(/[\/\\?%*:|"<>]/g, '').trim();
+    } catch { return ''; }
+  }
+  const cd = resp.headers.get('Content-Disposition');
+  const headerName = parseFilenameFromCD(cd);
+  const fallbackName = getNameFromUrl(fetchUrl);
+  const finalTitle = headerName || fallbackName;
+  if (finalTitle) document.title = finalTitle;
+  const pdfDoc      = await pdfjsLib.getDocument({data}).promise;
   const eventBus    = new EventBus();
   const linkService = new PDFLinkService({eventBus});
   const pdfViewer   = new PDFViewer({container, viewer:viewerDiv, eventBus, linkService});
@@ -1780,6 +1715,9 @@ async function main(host = {}, fetchUrlOverride) {
   eventBus.on('pagesloaded',        () => loader.remove());
   eventBus.on('pagesinit',          () => loader.remove());
   eventBus.on('documentloadfailed', () => loader.remove());
+  eventBus.on('pagesinit',         () => { checkWordsDetectable().catch(()=>{}); computeShiftFix(); });
+  eventBus.on('textlayerrendered', () => { checkWordsDetectable().catch(()=>{}); computeShiftFix(); });
+  eventBus.on('pagesloaded',       () => { checkWordsDetectable().catch(()=>{}); computeShiftFix(); });
   const fix = document.createElement('style');
   fix.textContent = `
     .textLayer span {
@@ -1792,12 +1730,17 @@ async function main(host = {}, fetchUrlOverride) {
       font:inherit;
       letter-spacing: inherit !important;
     }
+    .styled-word.aft-shift {
+      display: inline !important;
+      position: relative !important;
+      left: var(--aft-shift-x, 0px) !important;
+      top:  var(--aft-shift-y, 0px) !important;
+    }
     .word-highlight {
       position: absolute;
       pointer-events: none;
       mix-blend-mode: multiply;  
-      opacity: .35;            /* translucent highlight */ 
-      border-radius: 2px;
+      opacity: .25 !important;
     }
   `;
   fix.textContent += `
@@ -1856,9 +1799,9 @@ async function main(host = {}, fetchUrlOverride) {
     }
     return pages;
   }
-  async function computeAndRenderQuickLinks() {
+  async function computeAndRenderQuickLinks(labels) {
     const results = await Promise.all(
-      QUICK_LINKS.map(async label => [label, await findAllPagesFor(label)])
+      labels.map(async label => [label, await findAllPagesFor(label)])
     );
     const present = results
       .filter(([, pages]) => pages.length > 0)
@@ -1907,7 +1850,8 @@ async function main(host = {}, fetchUrlOverride) {
   }
   eventBus.on('pagesinit', async () => {
     pdfViewer.currentScaleValue = 'auto';
-    await computeAndRenderQuickLinks();
+    const labels = getQuickLinksFor(currentBU, currentOU);
+    await computeAndRenderQuickLinks(labels);
   });
   let _aftRefreshScheduled = false;
   let _aftLastReason = '';
@@ -1919,6 +1863,7 @@ async function main(host = {}, fetchUrlOverride) {
       _aftRefreshScheduled = false;
       if (!showingStyled) return;
       renderAllHighlights();
+      updateNoStylesBanner();
     });
   }
   setTimeout(() => aftRefreshHighlights('initDelay'), 500);
@@ -1968,13 +1913,17 @@ async function main(host = {}, fetchUrlOverride) {
   if (!hasEmbedForToggle) {
     toggle.textContent = 'Open Original';
   }
+
   toggle.onclick = () => {
-    if (embed) {
+    if (wrapper && embed) {
+      wrapper.replaceWith(embed);
       embed.style.display = '';
     } else if (window.__AFT_FETCH_URL) {
       location.href = window.__AFT_FETCH_URL + (window.__AFT_FETCH_URL.includes('#') ? '' : '#noaft');
       return;
     }
+    noStylesBannerEl?.remove();
+    noStylesBannerEl = null;
     container?.remove();
     hlPanel?.remove();
     customPanel?.remove();

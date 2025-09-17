@@ -58,7 +58,7 @@ function getActiveRoots() {
   const shells = queryAllDeep('one-app, one-app-container, div.slds-template__container')
                    .filter(isVisibleDeep);
   if (shells.length) return shells;
-  return [document]; // Fallback
+  return [document];
 }
 (function addSfPreviewOpenStyled() {
   const onLightning = /\.lightning\.force\.com$|\.my\.salesforce\.com$/.test(location.hostname);
@@ -155,14 +155,32 @@ function getActiveRoots() {
     if (!document.getElementById(PICK_ID)) {
       const pick = document.createElement('button');
       pick.id = PICK_ID;
-      pick.textContent = 'Pick PDF…';
+      pick.setAttribute('aria-label', 'Pick a PDF');
       pick.style.cssText = `
         position:fixed; top:64px; right:64px;
-        z-index:2147483647; padding:10px 14px;
+        z-index:2147483647;
+        width:40px; height:40px; padding:0;
+        display:grid; place-items:center;
         background:#fff; color:#000;
-        border:1px solid #888; border-radius:6px; cursor:pointer;
-        box-shadow:0 2px 6px rgba(0,0,0,.15);
+        border:1px solid #e5e7eb; border-radius:10px; cursor:pointer;
+        box-shadow:0 4px 12px rgba(0,0,0,.12);
+        transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
       `;
+      pick.innerHTML = `
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M8 11h4M8 14h8M8 17h8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      `;
+      pick.addEventListener('mouseenter', () => {
+        pick.style.boxShadow = '0 6px 18px rgba(0,0,0,.16)';
+        pick.style.transform = 'translateY(-1px)';
+      });
+      pick.addEventListener('mouseleave', () => {
+        pick.style.boxShadow = '0 4px 12px rgba(0,0,0,.12)';
+        pick.style.transform = 'none';
+      });
       pick.onclick = () => {
         const items = availablePdfItems();
         if (!items.length) { alert('No PDFs found on this page.'); return; }
@@ -181,9 +199,9 @@ function getActiveRoots() {
   (function watchUrlChangesForRefresh() {
     let last = location.href;
     const reset = () => {
-      __aftLastPdfSig = '';     // force ensureButtons to recompute
-      removePdfButtons();       // clear old buttons immediately if needed
-      ensureButtons(true);      // rebuild now
+      __aftLastPdfSig = '';
+      removePdfButtons();
+      ensureButtons(true);
     };
     ['pushState','replaceState'].forEach(fn => {
       const orig = history[fn];
@@ -216,7 +234,7 @@ function getActiveRoots() {
       const origin = u.origin.includes('.lightning.force.com') ? getFileOrigin() : u.origin;
       const anyIds = (u.href.match(/0(68|69)[0-9A-Za-z]{12,18}/g) || []);
       if (anyIds.length) {
-        const id = anyIds[anyIds.length - 1]; // prefer the last if multiple
+        const id = anyIds[anyIds.length - 1];
         const base = id.startsWith('069')
           ? `${getFileOrigin()}/sfc/servlet.shepherd/document/download/`
           : `${getFileOrigin()}/sfc/servlet.shepherd/version/download/`;

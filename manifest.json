@@ -37,16 +37,10 @@
         "pdf.worker.mjs",
         "pdf_viewer.mjs",
         "pdf_viewer.css",
-        "styles.js"
+        "styles.js",
+        "bridge.js"
       ],
-      "matches": [
-        "https://cpic1cs.corp.medtronic.com:8008/*",
-        "https://crmstage.medtronic.com/*",
-        "https://crm.medtronic.com/*",
-        "https://medtronicinctwd--dev.sandbox.lightning.force.com/*",
-        "https://*.lightning.force.com/*",
-        "https://*.file.force.com/*"
-      ]
+      "matches": ["<all_urls>"]
     }
   ]
 }

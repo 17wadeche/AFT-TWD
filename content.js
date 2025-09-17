@@ -2143,6 +2143,9 @@ async function main(host = {}, fetchUrlOverride) {
     window.postMessage({ type: 'AFT_NORMALIZE_TO_PDF_RESULT', out }, '*');
   });
   const s = document.createElement('script');
+  s.src = chrome.runtime.getURL('bridge.js');
+  s.async = false;
+  s.onload = () => s.remove();
   s.textContent = `
     (function(){
       window.__aftCollectPdfLinks = function(){

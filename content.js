@@ -236,6 +236,15 @@ function getActiveRoots() {
         display:none;
         color:#111; font: 13px/1.3 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       `;
+      function cleanDisplayName(raw, common = '') {
+        let s = stripPrefixAndTidy(String(raw || ''), common);
+        s = s
+          .replace(/^\d{6,}(?=[A-Za-z._-])/, '')          // big digit block glued to text
+          .replace(/^(?:[\s._-]*\d{2,})+(?=[A-Za-z])/, ''); // repeated digit groups with separators
+        s = s.replace(/^[^A-Za-z]+/, '');
+        s = s.replace(/^[\s._-]+/, '');
+        return s || raw;
+      }
       function buildMenu() {
         menu.innerHTML = '';
         const items = availablePdfItems();
@@ -290,7 +299,7 @@ function getActiveRoots() {
             display:flex; align-items:center; gap:8px;
             white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
           `;
-          const display = stripPrefixAndTidy((it.name || '').trim(), common);
+          const display = cleanDisplayName((it.name || '').trim(), common);
           btn.innerHTML = `
             <span style="flex:1 1 auto; overflow:hidden; text-overflow:ellipsis;">${escHtml(display)}</span>
           `;

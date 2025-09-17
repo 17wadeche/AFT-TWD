@@ -15,11 +15,12 @@ const ALLOWED_PREFIXES = [
 (function addSfPreviewOpenStyled() {
   if (!location.hostname.endsWith('.lightning.force.com')) return;
   const EXT_VIEWER = chrome.runtime.getURL('viewer.html');
-  const BTN_ID = '__aft_sf_open_styled';
+  const BTN_ID  = '__aft_sf_open_styled';
   const PICK_ID = '__aft_sf_pick_pdf';
   function openStyledWith(src) {
-    if (!src) return;
-    window.open(EXT_VIEWER + '?src=' + encodeURIComponent(src), '_blank', 'noopener');
+    const pdf = normalizeToPdf(src);
+    if (!pdf) return alert('No PDF URL found.');
+    window.open(EXT_VIEWER + '?src=' + encodeURIComponent(pdf), '_blank', 'noopener');
   }
   function collectPdfLinks() {
     const links = new Map();
@@ -31,47 +32,54 @@ const ALLOWED_PREFIXES = [
     ).forEach(ifr => links.set('Current preview', ifr.src));
     document.querySelectorAll('a[href*="/sfc/servlet.shepherd/version/"]').forEach(a => {
       const name = a.textContent.trim() || (a.getAttribute('title') || '').trim() || 'File';
-      const href = a.href;
-      const dl = href.replace('/version/', '/version/download/');
-      links.set(name, dl);
+      links.set(name, a.href);
     });
-    return [...links.entries()]
-      .filter(([, href]) => /\/version\/download\//.test(href) || /(\.pdf\b|format=pdf|contentType=application\/pdf)/i.test(href))
-      .map(([name, href]) => ({ name, href }));
+    return [...links.entries()].map(([name, href]) => ({ name, href: normalizeToPdf(href) }));
   }
   function ensureButtons() {
-    const dialog = document.querySelector('div[role="dialog"]');
-    if (!dialog) return;
-    dialog.style.position ||= 'relative';
     if (!document.getElementById(BTN_ID)) {
       const btn = document.createElement('button');
       btn.id = BTN_ID;
       btn.textContent = 'Open Styled';
-      btn.style.cssText = 'position:absolute;top:8px;right:140px;z-index:2147483647;padding:6px 12px;background:#ff0;color:#000;font-weight:700;border:1px solid #888;border-radius:4px;cursor:pointer;';
+      btn.style.cssText = `
+        position:fixed; top:64px; right:178px;
+        z-index:2147483647; padding:10px 14px;
+        background:#ff0; color:#000; font-weight:700;
+        border:1px solid #888; border-radius:6px; cursor:pointer;
+        box-shadow:0 2px 6px rgba(0,0,0,.15);
+      `;
       btn.onclick = () => {
-        const dl = document.querySelector('div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"]');
-        const ifr = document.querySelector('div[role="dialog"] iframe[src*="/sfc/servlet.shepherd/"], div[role="dialog"] iframe[src*="/sfcdoc/"]');
-        openStyledWith(dl?.href || ifr?.src);
+        const items = collectPdfLinks();
+        const first = items.find(i => /download\/[A-Za-z0-9]+$/.test(i.href)) || items[0];
+        openStyledWith(first?.href);
       };
-      dialog.appendChild(btn);
+      document.body.appendChild(btn);
     }
     if (!document.getElementById(PICK_ID)) {
       const pick = document.createElement('button');
       pick.id = PICK_ID;
       pick.textContent = 'Pick PDF…';
-      pick.style.cssText = 'position:absolute;top:8px;right:16px;z-index:2147483647;padding:6px 12px;background:#fff;color:#000;border:1px solid #888;border-radius:4px;cursor:pointer;';
+      pick.style.cssText = `
+        position:fixed; top:64px; right:64px;
+        z-index:2147483647; padding:10px 14px;
+        background:#fff; color:#000;
+        border:1px solid #888; border-radius:6px; cursor:pointer;
+        box-shadow:0 2px 6px rgba(0,0,0,.15);
+      `;
       pick.onclick = () => {
         const items = collectPdfLinks();
         if (!items.length) { alert('No PDFs found on this page.'); return; }
-        const choice = prompt('Type number to open:\n\n' + items.map((it, i) => `${i+1}. ${it.name}`).join('\n'));
+        const choices = items.map((it, i) => `${i+1}. ${it.name}`).join('\n');
+        const choice = prompt('Type number to open:\n\n' + choices);
         const idx = (choice ? parseInt(choice, 10) : 0) - 1;
         if (isFinite(idx) && items[idx]) openStyledWith(items[idx].href);
       };
-      dialog.appendChild(pick);
+      document.body.appendChild(pick);
     }
   }
   const mo = new MutationObserver(ensureButtons);
   mo.observe(document.documentElement, { subtree: true, childList: true });
+  setInterval(ensureButtons, 1000);
   ensureButtons();
 })();
 (function offerOpenStyledButton() {

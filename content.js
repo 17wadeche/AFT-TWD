@@ -1,5 +1,13 @@
 // content.js
 try { globalThis.DEBUG ??= false; } catch { }
+const AFT_DEBUG = (() => {
+  try {
+    if (localStorage.getItem('aft_debug') === '1') return true;
+  } catch {}
+  return (globalThis.DEBUG === true);
+})();
+const AFT_LOG = (...a) => { if (AFT_DEBUG) console.log('[AFT]', ...a); };
+AFT_LOG('content.js loaded on', location.href);
 const ALLOWED_PREFIXES = [
   'https://cpic1cs.corp.medtronic.com:8008/sap/bc/contentserver/',
   'https://crmstage.medtronic.com/sap/bc/contentserver/',
@@ -31,7 +39,13 @@ function queryAllDeep(selector, root = document) {
   return out;
 }
 (function addSfPreviewOpenStyled() {
-  if (!location.hostname.endsWith('.lightning.force.com')) return;
+  const onLightning = location.hostname.endsWith('.lightning.force.com');
+  const onFileHost  = location.hostname.endsWith('.file.force.com');
+  AFT_LOG('addSfPreviewOpenStyled start', { onLightning, onFileHost });
+  if (!onLightning && !onFileHost) {
+    AFT_LOG('Skipping host (neither lightning nor file)', location.hostname);
+    return;
+  }
   const EXT_VIEWER = chrome.runtime.getURL('viewer.html');
   const BTN_ID  = '__aft_sf_open_styled';
   const PICK_ID = '__aft_sf_pick_pdf';
@@ -74,6 +88,12 @@ function queryAllDeep(selector, root = document) {
       });
     return out;
   }
+  AFT_LOG('Download anchors:', queryAllDeep('div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"]').length);
+  AFT_LOG('Preview iframes :', queryAllDeep('div[role="dialog"] iframe[src*="/sfc/servlet.shepherd/"], div[role="dialog"] iframe[src*="/sfcdoc/"]').length);
+  AFT_LOG('ContentVersion a :', queryAllDeep('a[href*="/lightning/r/ContentVersion/"]').length);
+  AFT_LOG('data-recordid^="068":', queryAllDeep('[data-recordid^="068"]').length);
+  AFT_LOG('shepherd version  :', queryAllDeep('a[href*="/sfc/servlet.shepherd/version/"]').length);
+  AFT_LOG('collectPdfLinks out:', out);
   window.__aftCollectPdfLinks = collectPdfLinks;
   function ensureButtons() {
     if (!document.getElementById(BTN_ID)) {
@@ -140,8 +160,36 @@ function queryAllDeep(selector, root = document) {
       return '';
     }
   }
-  window.__aftNormalizeToPdf = normalizeToPdf;
-  window.__aftQueryAllDeep = queryAllDeep;
+  window.__aftCollectPdfLinks = () => {
+    try {
+      const items = collectPdfLinks();
+      AFT_LOG('__aftCollectPdfLinks ->', items);
+      return items;
+    } catch (e) {
+      console.error('[AFT] __aftCollectPdfLinks error:', e);
+      return [];
+    }
+  };
+  window.__aftNormalizeToPdf = (u) => {
+    try {
+      const v = normalizeToPdf(u);
+      AFT_LOG('__aftNormalizeToPdf <-', u, '->', v);
+      return v;
+    } catch (e) {
+      console.error('[AFT] __aftNormalizeToPdf error:', e);
+      return '';
+    }
+  };
+  window.queryAllDeep = (sel) => {
+    try {
+      const els = queryAllDeep(sel);
+      AFT_LOG('__aftQueryAllDeep', sel, '->', els.length);
+      return els;
+    } catch (e) {
+      console.error('[AFT] __aftQueryAllDeep error:', e);
+      return [];
+    }
+  };
   const mo = new MutationObserver(ensureButtons);
   mo.observe(document.documentElement, { subtree: true, childList: true });
   setInterval(ensureButtons, 1000);
@@ -2075,3 +2123,49 @@ async function main(host = {}, fetchUrlOverride) {
     link?.remove();
   };
 }
+(function installAftBridge() {
+  AFT_LOG('installAftBridge');
+  window.addEventListener('AFT_COLLECT_PDF_LINKS', () => {
+    let items = [];
+    try { items = (typeof window.__aftCollectPdfLinks === 'function') ? window.__aftCollectPdfLinks() : []; }
+    catch (e) { console.error('[AFT] collect bridge error:', e); }
+    window.postMessage({ type: 'AFT_COLLECT_PDF_LINKS_RESULT', items }, '*');
+  });
+  window.addEventListener('AFT_NORMALIZE_TO_PDF', (ev) => {
+    let out = '';
+    try { out = (typeof window.__aftNormalizeToPdf === 'function') ? window.__aftNormalizeToPdf(ev.detail) : ''; }
+    catch (e) { console.error('[AFT] normalize bridge error:', e); }
+    window.postMessage({ type: 'AFT_NORMALIZE_TO_PDF_RESULT', out }, '*');
+  });
+  const s = document.createElement('script');
+  s.textContent = `
+    (function(){
+      window.__aftCollectPdfLinks = function(){
+        return new Promise(resolve=>{
+          function onMsg(ev){
+            if (ev.data && ev.data.type === 'AFT_COLLECT_PDF_LINKS_RESULT'){
+              window.removeEventListener('message', onMsg);
+              resolve(ev.data.items || []);
+            }
+          }
+          window.addEventListener('message', onMsg);
+          window.dispatchEvent(new CustomEvent('AFT_COLLECT_PDF_LINKS'));
+        });
+      };
+      window.__aftNormalizeToPdf = function(u){
+        return new Promise(resolve=>{
+          function onMsg(ev){
+            if (ev.data && ev.data.type === 'AFT_NORMALIZE_TO_PDF_RESULT'){
+              window.removeEventListener('message', onMsg);
+              resolve(ev.data.out || '');
+            }
+          }
+          window.addEventListener('message', onMsg);
+          window.dispatchEvent(new CustomEvent('AFT_NORMALIZE_TO_PDF', { detail: u }));
+        });
+      };
+    })();
+  `;
+  (document.head || document.documentElement).appendChild(s);
+  s.remove();
+})();

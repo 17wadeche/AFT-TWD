@@ -16,6 +16,20 @@ function getFileOrigin() {
   const host = location.hostname.replace('.lightning.force.com', '.file.force.com');
   return `${location.protocol}//${host}`;
 }
+function* walkRoots(root) {
+  yield root;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (n.shadowRoot) yield* walkRoots(n.shadowRoot);
+  }
+}
+function queryAllDeep(selector, root = document) {
+  const out = [];
+  for (const r of walkRoots(root)) {
+    try { r.querySelectorAll?.(selector)?.forEach(el => out.push(el)); } catch {}
+  }
+  return out;
+}
 (function addSfPreviewOpenStyled() {
   if (!location.hostname.endsWith('.lightning.force.com')) return;
   const EXT_VIEWER = chrome.runtime.getURL('viewer.html');
@@ -29,34 +43,35 @@ function getFileOrigin() {
   function collectPdfLinks() {
     const seen = new Set();
     const out = [];
-    document.querySelectorAll(
-      'div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"]'
-    ).forEach(a => {
-      const href = normalizeToPdf(a.href);
-      if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Download', href }); }
-    });
-    document.querySelectorAll(
-      'div[role="dialog"] iframe[src*="/sfc/servlet.shepherd/"], div[role="dialog"] iframe[src*="/sfcdoc/"]'
-    ).forEach(ifr => {
-      const href = normalizeToPdf(ifr.src);
-      if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Current preview', href }); }
-    });
-    document.querySelectorAll('a[href*="/lightning/r/ContentVersion/"]').forEach(a => {
-      const href = normalizeToPdf(a.href);
-      const name = (a.textContent || a.getAttribute('title') || 'File').trim();
-      if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
-    });
-    document.querySelectorAll('[data-recordid^="068"]').forEach(el => {
-      const vid = el.getAttribute('data-recordid');
-      const href = normalizeToPdf(vid);
-      const name = (el.textContent || el.getAttribute('title') || 'File').trim();
-      if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
-    });
-    document.querySelectorAll('a[href*="/sfc/servlet.shepherd/version/"]').forEach(a => {
-      const href = normalizeToPdf(a.href);
-      const name = (a.textContent || a.getAttribute('title') || 'File').trim();
-      if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
-    });
+    queryAllDeep('div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"]')
+      .forEach(a => {
+        const href = normalizeToPdf(a.href);
+        if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Download', href }); }
+      });
+    queryAllDeep('div[role="dialog"] iframe[src*="/sfc/servlet.shepherd/"], div[role="dialog"] iframe[src*="/sfcdoc/"]')
+      .forEach(ifr => {
+        const href = normalizeToPdf(ifr.src);
+        if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Current preview', href }); }
+      });
+    queryAllDeep('a[href*="/lightning/r/ContentVersion/"]')
+      .forEach(a => {
+        const href = normalizeToPdf(a.href);
+        const name = (a.textContent || a.getAttribute('title') || 'File').trim();
+        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
+      });
+    queryAllDeep('[data-recordid^="068"]')
+      .forEach(el => {
+        const vid = el.getAttribute('data-recordid');
+        const href = normalizeToPdf(vid);
+        const name = (el.textContent || el.getAttribute('title') || 'File').trim();
+        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
+      });
+    queryAllDeep('a[href*="/sfc/servlet.shepherd/version/"]')
+      .forEach(a => {
+        const href = normalizeToPdf(a.href);
+        const name = (a.textContent || a.getAttribute('title') || 'File').trim();
+        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
+      });
     return out;
   }
   function ensureButtons() {
@@ -101,9 +116,9 @@ function getFileOrigin() {
     }
   }
   function normalizeToPdf(url) {
-    if (!url) return url;
+    if (!url) return '';
     try {
-      if (/^[0-9A-Za-z]{15,18}$/.test(url) && url.startsWith('068')) {
+      if (/^068[0-9A-Za-z]{12,15}$/i.test(url)) {
         return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${url}`;
       }
       const u = new URL(url);
@@ -112,20 +127,16 @@ function getFileOrigin() {
         return `${u.origin}/sfc/servlet.shepherd/version/download/${versionId}`;
       }
       let m = u.pathname.match(/\/servlet\.shepherd\/version\/([0-9A-Za-z]{15,18})/);
-      if (m) {
-        return `${u.origin}/sfc/servlet.shepherd/version/download/${m[1]}`;
-      }
+      if (m) return `${u.origin}/sfc/servlet.shepherd/version/download/${m[1]}`;
       m = u.pathname.match(/\/lightning\/r\/ContentVersion\/([0-9A-Za-z]{15,18})/);
-      if (m) {
-        return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${m[1]}`;
-      }
+      if (m) return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${m[1]}`;
       const vid = u.searchParams.get('versionId') || u.searchParams.get('id');
       if (vid && /^068[0-9A-Za-z]{12,15}$/.test(vid)) {
         return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${vid}`;
       }
       return url;
     } catch {
-      return url;
+      return '';
     }
   }
   const mo = new MutationObserver(ensureButtons);

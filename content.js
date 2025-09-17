@@ -4,7 +4,7 @@ const ALLOWED_PREFIXES = [
   'https://cpic1cs.corp.medtronic.com:8008/sap/bc/contentserver/',
   'https://crmstage.medtronic.com/sap/bc/contentserver/',
   'https://crm.medtronic.com/sap/bc/contentserver/',
-  "https://medtronicinctwd--dev.sandbox.lightning.force.com/lightning/r/*"
+  "https://medtronicinctwd--dev.sandbox.lightning.force.com/lightning/r/"
 ];
 (function offerOpenStyledButton() {
   if (location.hash !== '#noaft') return;

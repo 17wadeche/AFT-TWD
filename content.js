@@ -12,6 +12,10 @@ const ALLOWED_PREFIXES = [
   "https://*.file.force.com/sfc/",
   "https://*.file.force.com/sfcdoc/"
 ];
+function getFileOrigin() {
+  const host = location.hostname.replace('.lightning.force.com', '.file.force.com');
+  return `${location.protocol}//${host}`;
+}
 (function addSfPreviewOpenStyled() {
   if (!location.hostname.endsWith('.lightning.force.com')) return;
   const EXT_VIEWER = chrome.runtime.getURL('viewer.html');
@@ -23,18 +27,37 @@ const ALLOWED_PREFIXES = [
     window.open(EXT_VIEWER + '?src=' + encodeURIComponent(pdf), '_blank', 'noopener');
   }
   function collectPdfLinks() {
-    const links = new Map();
+    const seen = new Set();
+    const out = [];
     document.querySelectorAll(
       'div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"]'
-    ).forEach(a => links.set(a.textContent.trim() || 'Download', a.href));
+    ).forEach(a => {
+      const href = normalizeToPdf(a.href);
+      if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Download', href }); }
+    });
     document.querySelectorAll(
       'div[role="dialog"] iframe[src*="/sfc/servlet.shepherd/"], div[role="dialog"] iframe[src*="/sfcdoc/"]'
-    ).forEach(ifr => links.set('Current preview', ifr.src));
-    document.querySelectorAll('a[href*="/sfc/servlet.shepherd/version/"]').forEach(a => {
-      const name = a.textContent.trim() || (a.getAttribute('title') || '').trim() || 'File';
-      links.set(name, a.href);
+    ).forEach(ifr => {
+      const href = normalizeToPdf(ifr.src);
+      if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Current preview', href }); }
     });
-    return [...links.entries()].map(([name, href]) => ({ name, href: normalizeToPdf(href) }));
+    document.querySelectorAll('a[href*="/lightning/r/ContentVersion/"]').forEach(a => {
+      const href = normalizeToPdf(a.href);
+      const name = (a.textContent || a.getAttribute('title') || 'File').trim();
+      if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
+    });
+    document.querySelectorAll('[data-recordid^="068"]').forEach(el => {
+      const vid = el.getAttribute('data-recordid');
+      const href = normalizeToPdf(vid);
+      const name = (el.textContent || el.getAttribute('title') || 'File').trim();
+      if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
+    });
+    document.querySelectorAll('a[href*="/sfc/servlet.shepherd/version/"]').forEach(a => {
+      const href = normalizeToPdf(a.href);
+      const name = (a.textContent || a.getAttribute('title') || 'File').trim();
+      if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
+    });
+    return out;
   }
   function ensureButtons() {
     if (!document.getElementById(BTN_ID)) {
@@ -80,15 +103,30 @@ const ALLOWED_PREFIXES = [
   function normalizeToPdf(url) {
     if (!url) return url;
     try {
+      if (/^[0-9A-Za-z]{15,18}$/.test(url) && url.startsWith('068')) {
+        return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${url}`;
+      }
       const u = new URL(url);
       if (u.pathname.includes('/servlet.shepherd/version/renditionDownload') && u.searchParams.get('versionId')) {
         const versionId = u.searchParams.get('versionId');
         return `${u.origin}/sfc/servlet.shepherd/version/download/${versionId}`;
       }
-      const m = u.pathname.match(/\/servlet\.shepherd\/version\/([a-zA-Z0-9]+)/);
-      if (m) return `${u.origin}/sfc/servlet.shepherd/version/download/${m[1]}`;
+      let m = u.pathname.match(/\/servlet\.shepherd\/version\/([0-9A-Za-z]{15,18})/);
+      if (m) {
+        return `${u.origin}/sfc/servlet.shepherd/version/download/${m[1]}`;
+      }
+      m = u.pathname.match(/\/lightning\/r\/ContentVersion\/([0-9A-Za-z]{15,18})/);
+      if (m) {
+        return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${m[1]}`;
+      }
+      const vid = u.searchParams.get('versionId') || u.searchParams.get('id');
+      if (vid && /^068[0-9A-Za-z]{12,15}$/.test(vid)) {
+        return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${vid}`;
+      }
       return url;
-    } catch { return url; }
+    } catch {
+      return url;
+    }
   }
   const mo = new MutationObserver(ensureButtons);
   mo.observe(document.documentElement, { subtree: true, childList: true });

@@ -59,6 +59,14 @@ function queryAllDeep(selector, root = document) {
       return collectPdfLinks().filter(it => !/^\s*current preview\s*$/i.test(it.name));
     } catch { return []; }
   }
+  let __aftLastPdfSig = '';
+  function pdfItemsSig(items) {
+    return items.map(i => String(i.href || '').trim()).filter(Boolean).sort().join('||');
+  }
+  function removePdfButtons() {
+    document.getElementById(BTN_ID)?.remove();
+    document.getElementById(PICK_ID)?.remove();
+  }
   function collectPdfLinks() {
     const seen = new Set();
     const out = [];
@@ -147,11 +155,13 @@ function queryAllDeep(selector, root = document) {
     console.error('[AFT] collectPdfLinks() threw:', e);
   }
   window.__aftCollectPdfLinks = collectPdfLinks;
-  function ensureButtons() {
+  function ensureButtons(force = false) {
     const itemsNow = availablePdfItems();
+    const sigNow   = pdfItemsSig(itemsNow);
+    if (!force && sigNow === __aftLastPdfSig) return;
+    __aftLastPdfSig = sigNow;
     if (itemsNow.length === 0) {
-      document.getElementById(BTN_ID)?.remove();
-      document.getElementById(PICK_ID)?.remove();
+      removePdfButtons();
       return;
     }
     if (!document.getElementById(BTN_ID)) {
@@ -166,7 +176,8 @@ function queryAllDeep(selector, root = document) {
         box-shadow:0 2px 6px rgba(0,0,0,.15);
       `;
       btn.onclick = () => {
-        const items = collectPdfLinks();
+        const items = availablePdfItems();
+        if (!items.length) { alert('No PDFs found on this page.'); return; }
         const first = items.find(i => /download\/[A-Za-z0-9]+$/.test(i.href)) || items[0];
         openStyledWith(first?.href);
       };
@@ -193,6 +204,10 @@ function queryAllDeep(selector, root = document) {
       };
       document.body.appendChild(pick);
     }
+    const btn  = document.getElementById(BTN_ID);
+    const pick = document.getElementById(PICK_ID);
+    if (btn)  btn.title  = `${itemsNow.length} PDF${itemsNow.length>1?'s':''} available`;
+    if (pick) pick.title = `Pick from ${itemsNow.length} PDF${itemsNow.length>1?'s':''}`;
   }
   function normalizeToPdf(url) {
     if (!url) return '';

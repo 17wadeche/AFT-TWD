@@ -54,6 +54,11 @@ function queryAllDeep(selector, root = document) {
     if (!pdf) return alert('No PDF URL found.');
     window.open(EXT_VIEWER + '?src=' + encodeURIComponent(pdf), '_blank', 'noopener');
   }
+  function availablePdfItems() {
+    try {
+      return collectPdfLinks().filter(it => !/^\s*current preview\s*$/i.test(it.name));
+    } catch { return []; }
+  }
   function collectPdfLinks() {
     const seen = new Set();
     const out = [];
@@ -128,7 +133,7 @@ function queryAllDeep(selector, root = document) {
         const href = normalizeToPdf(raw);
         if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Current preview', href }); }
       });
-    return out;
+    return out.filter(it => !/^\s*current preview\s*$/i.test(it.name));
   }
   AFT_LOG('Download anchors:', queryAllDeep('div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"]').length);
   AFT_LOG('Preview iframes :', queryAllDeep('div[role="dialog"] iframe[src*="/sfc/servlet.shepherd/"], div[role="dialog"] iframe[src*="/sfcdoc/"]').length);
@@ -143,6 +148,12 @@ function queryAllDeep(selector, root = document) {
   }
   window.__aftCollectPdfLinks = collectPdfLinks;
   function ensureButtons() {
+    const itemsNow = availablePdfItems();
+    if (itemsNow.length === 0) {
+      document.getElementById(BTN_ID)?.remove();
+      document.getElementById(PICK_ID)?.remove();
+      return;
+    }
     if (!document.getElementById(BTN_ID)) {
       const btn = document.createElement('button');
       btn.id = BTN_ID;
@@ -173,7 +184,7 @@ function queryAllDeep(selector, root = document) {
         box-shadow:0 2px 6px rgba(0,0,0,.15);
       `;
       pick.onclick = () => {
-        const items = collectPdfLinks();
+        const items = availablePdfItems();
         if (!items.length) { alert('No PDFs found on this page.'); return; }
         const choices = items.map((it, i) => `${i+1}. ${it.name}`).join('\n');
         const choice = prompt('Type number to open:\n\n' + choices);

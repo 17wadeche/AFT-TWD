@@ -57,10 +57,25 @@ function queryAllDeep(selector, root = document) {
   function collectPdfLinks() {
     const seen = new Set();
     const out = [];
-    queryAllDeep('div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"]')
+    queryAllDeep('div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"], div[role="dialog"] button[title="Download"], div[role="dialog"] button[aria-label="Download"]')
       .forEach(a => {
-        const href = normalizeToPdf(a.href);
+        const href = normalizeToPdf(a.getAttribute('href') || a.getAttribute('data-href') || '');
         if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Download', href }); }
+      });
+    queryAllDeep('[data-downloadurl]')
+      .forEach(el => {
+        const csv = el.getAttribute('data-downloadurl') || '';
+        const parts = csv.split(':');
+        const raw = parts[2] || '';
+        const href = normalizeToPdf(raw);
+        const name = (parts[1] || el.getAttribute('title') || el.textContent || 'File').trim();
+        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
+      });
+    queryAllDeep('a[href*="/sfc/servlet.shepherd/document/"]')
+      .forEach(a => {
+        const href = normalizeToPdf(a.getAttribute('href'));
+        const name = (a.textContent || a.getAttribute('title') || 'File').trim();
+        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
       });
     queryAllDeep('div[role="dialog"] iframe[src*="/sfc/servlet.shepherd/"], div[role="dialog"] iframe[src*="/sfcdoc/"]')
       .forEach(ifr => {
@@ -144,20 +159,23 @@ function queryAllDeep(selector, root = document) {
   function normalizeToPdf(url) {
     if (!url) return '';
     try {
-      if (/^068[0-9A-Za-z]{12,15}$/i.test(url)) {
+      if (/^068[0-9A-Za-z]{12,18}$/i.test(url)) {
         return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${url}`;
       }
       const u = new URL(url);
+      const origin = u.origin.includes('.lightning.force.com') ? getFileOrigin() : u.origin;
       if (u.pathname.includes('/servlet.shepherd/version/renditionDownload') && u.searchParams.get('versionId')) {
         const versionId = u.searchParams.get('versionId');
-        return `${u.origin}/sfc/servlet.shepherd/version/download/${versionId}`;
+        return `${origin}/sfc/servlet.shepherd/version/download/${versionId}`;
       }
       let m = u.pathname.match(/\/servlet\.shepherd\/version\/([0-9A-Za-z]{15,18})/);
-      if (m) return `${u.origin}/sfc/servlet.shepherd/version/download/${m[1]}`;
+      if (m) return `${origin}/sfc/servlet.shepherd/version/download/${m[1]}`;
+      m = u.pathname.match(/\/servlet\.shepherd\/document\/download\/([0-9A-Za-z]{15,18})/);
+      if (m) return `${origin}/sfc/servlet.shepherd/document/download/${m[1]}`;
       m = u.pathname.match(/\/lightning\/r\/ContentVersion\/([0-9A-Za-z]{15,18})/);
       if (m) return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${m[1]}`;
       const vid = u.searchParams.get('versionId') || u.searchParams.get('id');
-      if (vid && /^068[0-9A-Za-z]{12,15}$/.test(vid)) {
+      if (vid && /^068[0-9A-Za-z]{12,18}$/.test(vid)) {
         return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${vid}`;
       }
       return url;
@@ -244,7 +262,11 @@ function queryAllDeep(selector, root = document) {
   }
 })();
 function urlIsAllowed(href = location.href) {
-  return ALLOWED_PREFIXES.some(p => href.startsWith(p));
+  return ALLOWED_PREFIXES.some(p => {
+    if (!p.includes('*')) return href.startsWith(p);
+    const [pre, post] = p.split('*');
+    return href.startsWith(pre) && href.includes(post);
+  });
 }
 let initialized = false;
 let prevActiveWordsSet = new Set();
@@ -2130,13 +2152,13 @@ async function main(host = {}, fetchUrlOverride) {
 }
 (function installAftBridge() {
   AFT_LOG('installAftBridge');
-  window.addEventListener('AFT_COLLECT_PDF_LINKS', () => {
+  document.addEventListener('AFT_COLLECT_PDF_LINKS', () => {
     let items = [];
     try { items = (typeof window.__aftCollectPdfLinks === 'function') ? window.__aftCollectPdfLinks() : []; }
     catch (e) { console.error('[AFT] collect bridge error:', e); }
     window.postMessage({ type: 'AFT_COLLECT_PDF_LINKS_RESULT', items }, '*');
   });
-  window.addEventListener('AFT_NORMALIZE_TO_PDF', (ev) => {
+  document.addEventListener('AFT_NORMALIZE_TO_PDF', (ev) => {
     let out = '';
     try { out = (typeof window.__aftNormalizeToPdf === 'function') ? window.__aftNormalizeToPdf(ev.detail) : ''; }
     catch (e) { console.error('[AFT] normalize bridge error:', e); }
@@ -2145,35 +2167,5 @@ async function main(host = {}, fetchUrlOverride) {
   const s = document.createElement('script');
   s.src = chrome.runtime.getURL('bridge.js');
   s.async = false;
-  s.onload = () => s.remove();
-  s.textContent = `
-    (function(){
-      window.__aftCollectPdfLinks = function(){
-        return new Promise(resolve=>{
-          function onMsg(ev){
-            if (ev.data && ev.data.type === 'AFT_COLLECT_PDF_LINKS_RESULT'){
-              window.removeEventListener('message', onMsg);
-              resolve(ev.data.items || []);
-            }
-          }
-          window.addEventListener('message', onMsg);
-          window.dispatchEvent(new CustomEvent('AFT_COLLECT_PDF_LINKS'));
-        });
-      };
-      window.__aftNormalizeToPdf = function(u){
-        return new Promise(resolve=>{
-          function onMsg(ev){
-            if (ev.data && ev.data.type === 'AFT_NORMALIZE_TO_PDF_RESULT'){
-              window.removeEventListener('message', onMsg);
-              resolve(ev.data.out || '');
-            }
-          }
-          window.addEventListener('message', onMsg);
-          window.dispatchEvent(new CustomEvent('AFT_NORMALIZE_TO_PDF', { detail: u }));
-        });
-      };
-    })();
-  `;
   (document.head || document.documentElement).appendChild(s);
-  s.remove();
 })();

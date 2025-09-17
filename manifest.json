@@ -6,19 +6,18 @@
   "content_scripts": [
     {
       "matches": [
-        "https://cpic1cs.corp.medtronic.com:8008/*",
+        "https://cpic1cs.corp.medtronic.com/*",
         "https://crmstage.medtronic.com/*",
         "https://crm.medtronic.com/*",
         "https://medtronicinctwd--dev.sandbox.lightning.force.com/lightning/r/*"
       ],
       "js": ["content.js"],
-      "type": "module",
       "run_at": "document_idle",
       "all_frames": true
     }
   ],
   "host_permissions": [
-    "https://cpic1cs.corp.medtronic.com:8008/*",
+    "https://cpic1cs.corp.medtronic.com/*",
     "https://crmstage.medtronic.com/*",
     "https://crm.medtronic.com/*",
     "https://medtronicinctwd--dev.sandbox.lightning.force.com/lightning/r/*"
@@ -36,7 +35,7 @@
         "styles.js"
       ],
       "matches": [
-        "https://cpic1cs.corp.medtronic.com:8008/*",
+        "https://cpic1cs.corp.medtronic.com/*",
         "https://crmstage.medtronic.com/*",
         "https://crm.medtronic.com/*",
         "https://medtronicinctwd--dev.sandbox.lightning.force.com/lightning/r/*"

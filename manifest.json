@@ -4,7 +4,7 @@
   "background": { "service_worker": "bg.js" },
   "name": "TWD Attachment Formatting Tool",
   "description": "Formatting Tool for that highlights, underlines and colors words based on the configuration selected for PDF files.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "content_scripts": [
     {
       "matches": [

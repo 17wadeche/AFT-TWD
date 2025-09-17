@@ -39,8 +39,8 @@ function queryAllDeep(selector, root = document) {
   return out;
 }
 (function addSfPreviewOpenStyled() {
-  const onLightning = location.hostname.endsWith('.lightning.force.com');
-  const onFileHost  = location.hostname.endsWith('.file.force.com');
+  const onLightning = /\.lightning\.force\.com$|\.my\.salesforce\.com$/.test(location.hostname);
+  const onFileHost  = /\.file\.force\.com$|\.content\.force\.com$|\.forceusercontent\.com$/.test(location.hostname);
   AFT_LOG('addSfPreviewOpenStyled start', { onLightning, onFileHost });
   if (!onLightning && !onFileHost) {
     AFT_LOG('Skipping host (neither lightning nor file)', location.hostname);
@@ -168,7 +168,10 @@ function queryAllDeep(selector, root = document) {
     if (!url) return '';
     try {
       if (/^(068|069)[0-9A-Za-z]{12,18}$/i.test(url)) {
-        return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${url}`;
+        const base = url.startsWith('069')
+          ? `${getFileOrigin()}/sfc/servlet.shepherd/document/download/`
+          : `${getFileOrigin()}/sfc/servlet.shepherd/version/download/`;
+        return base + url;
       }
       const u = new URL(url);
       const origin = u.origin.includes('.lightning.force.com') ? getFileOrigin() : u.origin;
@@ -184,7 +187,10 @@ function queryAllDeep(selector, root = document) {
       if (m) return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${m[1]}`;
       const vid = u.searchParams.get('versionId') || u.searchParams.get('id');
       if (vid && /^(068|069)[0-9A-Za-z]{12,18}$/i.test(vid)) {
-        return `${getFileOrigin()}/sfc/servlet.shepherd/version/download/${vid}`;
+        const base = vid.startsWith('069')
+          ? `${getFileOrigin()}/sfc/servlet.shepherd/document/download/`
+          : `${getFileOrigin()}/sfc/servlet.shepherd/version/download/`;
+        return base + vid;
       }
       return url;
     } catch {
@@ -2171,6 +2177,18 @@ async function main(host = {}, fetchUrlOverride) {
     try { out = (typeof window.__aftNormalizeToPdf === 'function') ? window.__aftNormalizeToPdf(ev.detail) : ''; }
     catch (e) { console.error('[AFT] normalize bridge error:', e); }
     window.postMessage({ type: 'AFT_NORMALIZE_TO_PDF_RESULT', out }, '*');
+  });
+  document.addEventListener('AFT_QUERY_ALL_DEEP', (ev) => {
+    const sel = (ev && ev.detail) || '*';
+    let els = [];
+    try { els = (typeof window.__aftQueryAllDeep === 'function') ? window.__aftQueryAllDeep(sel) : []; }
+    catch (e) { console.error('[AFT] query bridge error:', e); }
+    window.postMessage({
+      type: 'AFT_QUERY_ALL_DEEP_RESULT',
+      selector: sel,
+      count: els.length,
+      sample: els.slice(0, 10).map(e => e.tagName || 'node')
+    }, '*');
   });
   const s = document.createElement('script');
   s.src = chrome.runtime.getURL('bridge.js');

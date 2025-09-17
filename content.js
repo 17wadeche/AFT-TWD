@@ -103,12 +103,31 @@ function queryAllDeep(selector, root = document) {
         if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
       });
     queryAllDeep('[data-url*="/sfc/servlet.shepherd/"], [data-href*="/sfc/servlet.shepherd/"]')
-    .forEach(el => {
-      const raw = el.getAttribute('data-url') || el.getAttribute('data-href') || '';
-      const href = normalizeToPdf(raw);
-      const name = (el.getAttribute('title') || el.textContent || 'File').trim();
-      if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
-    });
+      .forEach(el => {
+        const raw = el.getAttribute('data-url') || el.getAttribute('data-href') || '';
+        const href = normalizeToPdf(raw);
+        const name = (el.getAttribute('title') || el.textContent || 'File').trim();
+        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
+      });
+    queryAllDeep('a[href*="filePreview?"], a[href*="servlet.FileDownload?"], a[href*="/chatter/servlet/"]')
+      .forEach(a => {
+        const href = normalizeToPdf(a.getAttribute('href') || a.href || '');
+        const name = (a.textContent || a.getAttribute('title') || 'File').trim();
+        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
+      });
+    queryAllDeep('[href*="068"], [href*="069"], [data-href*="068"], [data-href*="069"], [data-url*="068"], [data-url*="069"]')
+      .forEach(el => {
+        const raw = el.getAttribute('href') || el.getAttribute('data-href') || el.getAttribute('data-url') || '';
+        const href = normalizeToPdf(raw);
+        const name = (el.getAttribute('title') || el.textContent || 'File').trim();
+        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
+      });
+    queryAllDeep('iframe[src], iframe[data-src]')
+      .forEach(ifr => {
+        const raw = ifr.getAttribute('src') || ifr.getAttribute('data-src') || '';
+        const href = normalizeToPdf(raw);
+        if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Current preview', href }); }
+      });
     return out;
   }
   AFT_LOG('Download anchors:', queryAllDeep('div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"]').length);
@@ -173,8 +192,16 @@ function queryAllDeep(selector, root = document) {
           : `${getFileOrigin()}/sfc/servlet.shepherd/version/download/`;
         return base + url;
       }
-      const u = new URL(url);
+      const u = new URL(url, location.href);
       const origin = u.origin.includes('.lightning.force.com') ? getFileOrigin() : u.origin;
+      const anyIds = (u.href.match(/0(68|69)[0-9A-Za-z]{12,18}/g) || []);
+      if (anyIds.length) {
+        const id = anyIds[anyIds.length - 1]; // prefer the last if multiple
+        const base = id.startsWith('069')
+          ? `${getFileOrigin()}/sfc/servlet.shepherd/document/download/`
+          : `${getFileOrigin()}/sfc/servlet.shepherd/version/download/`;
+        return base + id;
+      }
       if (u.pathname.includes('/servlet.shepherd/version/renditionDownload') && u.searchParams.get('versionId')) {
         const versionId = u.searchParams.get('versionId');
         return `${origin}/sfc/servlet.shepherd/version/download/${versionId}`;
@@ -2189,6 +2216,25 @@ async function main(host = {}, fetchUrlOverride) {
       count: els.length,
       sample: els.slice(0, 10).map(e => e.tagName || 'node')
     }, '*');
+  });
+  document.addEventListener('AFT_QUERY_ATTRS', (ev) => {
+    const { selector, attrs = ['src','href','data-src','data-href','data-url','id','class'], max = 25 } = ev.detail || {};
+    let els = [];
+    try { els = (typeof window.__aftQueryAllDeep === 'function') ? window.__aftQueryAllDeep(selector) : []; }
+    catch (e) { console.error('[AFT] attrs bridge error:', e); }
+    const rows = els.slice(0, max).map(el => {
+      const out = { tag: el.tagName };
+      for (const a of attrs) {
+        let v = null;
+        try {
+          v = el.getAttribute?.(a);
+          if (v == null && a in el) v = el[a];
+        } catch {}
+        out[a] = v;
+      }
+      return out;
+    });
+    window.postMessage({ type: 'AFT_QUERY_ATTRS_RESULT', selector, count: els.length, rows }, '*');
   });
   const s = document.createElement('script');
   s.src = chrome.runtime.getURL('bridge.js');

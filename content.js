@@ -38,6 +38,28 @@ function queryAllDeep(selector, root = document) {
   }
   return out;
 }
+function isVisibleDeep(el) {
+  try {
+    if (!el || !el.isConnected) return false;
+    if (el.closest('[hidden],[aria-hidden="true"]')) return false;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+    const rects = el.getClientRects?.();
+    if (!rects || rects.length === 0) return false;
+    return true;
+  } catch { return false; }
+}
+function getActiveRoots() {
+  const dialogs = queryAllDeep('div[role="dialog"]:not([aria-hidden="true"])');
+  if (dialogs.length) return dialogs;
+  const mains = queryAllDeep('div[role="main"]')
+                 .filter(isVisibleDeep);
+  if (mains.length) return mains;
+  const shells = queryAllDeep('one-app, one-app-container, div.slds-template__container')
+                   .filter(isVisibleDeep);
+  if (shells.length) return shells;
+  return [document]; // Fallback
+}
 (function addSfPreviewOpenStyled() {
   const onLightning = /\.lightning\.force\.com$|\.my\.salesforce\.com$/.test(location.hostname);
   const onFileHost  = /\.file\.force\.com$|\.content\.force\.com$|\.forceusercontent\.com$/.test(location.hostname);
@@ -70,77 +92,43 @@ function queryAllDeep(selector, root = document) {
   function collectPdfLinks() {
     const seen = new Set();
     const out = [];
-    queryAllDeep('a[title="Download"], a[aria-label="Download"], button[title="Download"], button[aria-label="Download"]')
-      .forEach(a => {
-        const href = normalizeToPdf(a.getAttribute('href') || a.getAttribute('data-href') || '');
-        if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Download', href }); }
-      });
-    queryAllDeep('[data-downloadurl]')
-      .forEach(el => {
+    const roots = getActiveRoots();
+    const push = (el, name, rawHref) => {
+      const href = normalizeToPdf(rawHref || '');
+      if (!href) return;
+      if (!isVisibleDeep(el)) return;
+      if (seen.has(href)) return;
+      seen.add(href);
+      out.push({ name: (name || el.getAttribute?.('title') || el.textContent || 'File').trim(), href });
+    };
+    for (const root of roots) {
+      queryAllDeep('a[title="Download"], a[aria-label="Download"], button[title="Download"], button[aria-label="Download"]', root)
+        .forEach(a => push(a, 'Download', a.getAttribute('href') || a.getAttribute('data-href') || ''));
+      queryAllDeep('[data-downloadurl]', root).forEach(el => {
         const csv = el.getAttribute('data-downloadurl') || '';
         const parts = csv.split(':');
-        const raw = parts[2] || '';
-        const href = normalizeToPdf(raw);
         const name = (parts[1] || el.getAttribute('title') || el.textContent || 'File').trim();
-        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
+        const raw  = parts[2] || '';
+        push(el, name, raw);
       });
-    queryAllDeep('a[href*="/sfc/servlet.shepherd/document/"]')
-      .forEach(a => {
-        const href = normalizeToPdf(a.getAttribute('href'));
-        const name = (a.textContent || a.getAttribute('title') || 'File').trim();
-        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
-      });
-    queryAllDeep('iframe[src*="/sfc/servlet.shepherd/"], iframe[src*="/sfcdoc/"], iframe[data-src*="/sfc/servlet.shepherd/"], iframe[data-src*="/sfcdoc/"]')
-      .forEach(ifr => {
-        const raw = ifr.getAttribute('src') || ifr.getAttribute('data-src') || '';
-        const href = normalizeToPdf(raw);
-        if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Current preview', href }); }
-      });
-    queryAllDeep('a[href*="/lightning/r/ContentVersion/"]')
-      .forEach(a => {
-        const href = normalizeToPdf(a.href);
-        const name = (a.textContent || a.getAttribute('title') || 'File').trim();
-        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
-      });
-    queryAllDeep('[data-recordid^="068"], [data-recordid^="069"]')
-      .forEach(el => {
-        const vid = el.getAttribute('data-recordid');
-        const href = normalizeToPdf(vid);
-        const name = (el.textContent || el.getAttribute('title') || 'File').trim();
-        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
-      });
-    queryAllDeep('a[href*="/sfc/servlet.shepherd/version/"], a[href*="/sfc/servlet.shepherd/document/"]')
-      .forEach(a => {
-        const href = normalizeToPdf(a.href);
-        const name = (a.textContent || a.getAttribute('title') || 'File').trim();
-        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
-      });
-    queryAllDeep('[data-url*="/sfc/servlet.shepherd/"], [data-href*="/sfc/servlet.shepherd/"]')
-      .forEach(el => {
-        const raw = el.getAttribute('data-url') || el.getAttribute('data-href') || '';
-        const href = normalizeToPdf(raw);
-        const name = (el.getAttribute('title') || el.textContent || 'File').trim();
-        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
-      });
-    queryAllDeep('a[href*="filePreview?"], a[href*="servlet.FileDownload?"], a[href*="/chatter/servlet/"]')
-      .forEach(a => {
-        const href = normalizeToPdf(a.getAttribute('href') || a.href || '');
-        const name = (a.textContent || a.getAttribute('title') || 'File').trim();
-        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
-      });
-    queryAllDeep('[href*="068"], [href*="069"], [data-href*="068"], [data-href*="069"], [data-url*="068"], [data-url*="069"]')
-      .forEach(el => {
-        const raw = el.getAttribute('href') || el.getAttribute('data-href') || el.getAttribute('data-url') || '';
-        const href = normalizeToPdf(raw);
-        const name = (el.getAttribute('title') || el.textContent || 'File').trim();
-        if (href && !seen.has(href)) { seen.add(href); out.push({ name, href }); }
-      });
-    queryAllDeep('iframe[src], iframe[data-src]')
-      .forEach(ifr => {
-        const raw = ifr.getAttribute('src') || ifr.getAttribute('data-src') || '';
-        const href = normalizeToPdf(raw);
-        if (href && !seen.has(href)) { seen.add(href); out.push({ name: 'Current preview', href }); }
-      });
+      queryAllDeep('a[href*="/sfc/servlet.shepherd/document/"]', root)
+        .forEach(a => push(a, a.textContent || a.getAttribute('title') || 'File', a.getAttribute('href')));
+      queryAllDeep('iframe[src*="/sfc/servlet.shepherd/"], iframe[src*="/sfcdoc/"], iframe[data-src*="/sfc/servlet.shepherd/"], iframe[data-src*="/sfcdoc/"]', root)
+        .forEach(ifr => push(ifr, 'Current preview', ifr.getAttribute('src') || ifr.getAttribute('data-src') || ''));
+      queryAllDeep('a[href*="/lightning/r/ContentVersion/"]', root)
+        .forEach(a => push(a, a.textContent || a.getAttribute('title') || 'File', a.href));
+      queryAllDeep('[data-recordid^="068"], [data-recordid^="069"]', root)
+        .forEach(el => push(el, el.textContent || el.getAttribute('title') || 'File', el.getAttribute('data-recordid')));
+      queryAllDeep('a[href*="/sfc/servlet.shepherd/version/"], a[href*="/sfc/servlet.shepherd/document/"]', root)
+        .forEach(a => push(a, a.textContent || a.getAttribute('title') || 'File', a.href));
+      queryAllDeep('[data-url*="/sfc/servlet.shepherd/"], [data-href*="/sfc/servlet.shepherd/"]', root)
+        .forEach(el => push(el, el.getAttribute('title') || el.textContent || 'File', el.getAttribute('data-url') || el.getAttribute('data-href') || ''));
+      queryAllDeep('a[href*="filePreview?"], a[href*="servlet.FileDownload?"], a[href*="/chatter/servlet/"]', root)
+        .forEach(a => push(a, a.textContent || a.getAttribute('title') || 'File', a.getAttribute('href') || a.href || ''));
+      queryAllDeep('[href*="068"], [href*="069"], [data-href*="068"], [data-href*="069"], [data-url*="068"], [data-url*="069"]', root)
+        .forEach(el => push(el, el.getAttribute('title') || el.textContent || 'File',
+          el.getAttribute('href') || el.getAttribute('data-href') || el.getAttribute('data-url') || ''));
+    }
     return out.filter(it => !/^\s*current preview\s*$/i.test(it.name));
   }
   AFT_LOG('Download anchors:', queryAllDeep('div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"]').length);
@@ -190,6 +178,31 @@ function queryAllDeep(selector, root = document) {
     if (btn)  btn.title  = `${itemsNow.length} PDF${itemsNow.length>1?'s':''} available`;
     if (pick) pick.title = `Pick from ${itemsNow.length} PDF${itemsNow.length>1?'s':''}`;
   }
+  (function watchUrlChangesForRefresh() {
+    let last = location.href;
+    const reset = () => {
+      __aftLastPdfSig = '';     // force ensureButtons to recompute
+      removePdfButtons();       // clear old buttons immediately if needed
+      ensureButtons(true);      // rebuild now
+    };
+    ['pushState','replaceState'].forEach(fn => {
+      const orig = history[fn];
+      history[fn] = function(...args){
+        const ret = orig.apply(this, args);
+        window.dispatchEvent(new Event('aft-url-changed'));
+        return ret;
+      };
+    });
+    window.addEventListener('aft-url-changed', () => {
+      if (location.href !== last) { last = location.href; reset(); }
+    });
+    window.addEventListener('popstate', () => {
+      if (location.href !== last) { last = location.href; reset(); }
+    });
+    setInterval(() => {
+      if (location.href !== last) { last = location.href; reset(); }
+    }, 800);
+  })();
   function normalizeToPdf(url) {
     if (!url) return '';
     try {

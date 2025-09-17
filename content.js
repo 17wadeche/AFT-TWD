@@ -77,6 +77,19 @@ const ALLOWED_PREFIXES = [
       document.body.appendChild(pick);
     }
   }
+  function normalizeToPdf(url) {
+    if (!url) return url;
+    try {
+      const u = new URL(url);
+      if (u.pathname.includes('/servlet.shepherd/version/renditionDownload') && u.searchParams.get('versionId')) {
+        const versionId = u.searchParams.get('versionId');
+        return `${u.origin}/sfc/servlet.shepherd/version/download/${versionId}`;
+      }
+      const m = u.pathname.match(/\/servlet\.shepherd\/version\/([a-zA-Z0-9]+)/);
+      if (m) return `${u.origin}/sfc/servlet.shepherd/version/download/${m[1]}`;
+      return url;
+    } catch { return url; }
+  }
   const mo = new MutationObserver(ensureButtons);
   mo.observe(document.documentElement, { subtree: true, childList: true });
   setInterval(ensureButtons, 1000);

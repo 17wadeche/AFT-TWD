@@ -58,7 +58,7 @@ function getActiveRoots() {
   const shells = queryAllDeep('one-app, one-app-container, div.slds-template__container')
                    .filter(isVisibleDeep);
   if (shells.length) return shells;
-  return [document]; // Fallback
+  return [document];
 }
 (function addSfPreviewOpenStyled() {
   const onLightning = /\.lightning\.force\.com$|\.my\.salesforce\.com$/.test(location.hostname);
@@ -143,47 +143,242 @@ function getActiveRoots() {
     console.error('[AFT] collectPdfLinks() threw:', e);
   }
   window.__aftCollectPdfLinks = collectPdfLinks;
+  function aftUpsertStyle(id, css) {
+    let s = document.getElementById(id);
+    if (!s) { s = document.createElement('style'); s.id = id; document.head.appendChild(s); }
+    s.textContent = css;
+  }
+  aftUpsertStyle('aft-pick-modern-css', `
+    #${PICK_ID} {
+      position: fixed; top: 64px; right: 64px;
+      z-index: 2147483647;
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 12px 16px 12px 12px;
+      border: 1px solid #e5e7eb; border-radius: 9999px;
+      background: #111827; color: #fff;
+      box-shadow: 0 10px 20px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.18);
+      cursor: pointer; user-select: none;
+      font: 500 14px/1.1 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      transition: transform .08s ease, box-shadow .18s ease, background .18s ease, border-color .18s ease;
+    }
+    #${PICK_ID}:hover { transform: translateY(-1px); box-shadow: 0 14px 28px rgba(0,0,0,.22), 0 4px 10px rgba(0,0,0,.20); }
+    #${PICK_ID}:active { transform: translateY(0); box-shadow: 0 6px 12px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.18); }
+    #${PICK_ID}[disabled] { opacity: .6; cursor: default; }
+    #${PICK_ID} .aft-ico { width: 18px; height: 18px; display: inline-block; }
+    #${PICK_ID} .aft-label { letter-spacing: .2px; }
+    #${PICK_ID} .aft-badge {
+      min-width: 20px; height: 20px; padding: 0 6px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 12px; background: #22c55e; color: #062b10; font-weight: 700;
+      border-radius: 9999px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.05);
+    }
+    /* Sheet overlay */
+    #aftPdfSheet {
+      position: fixed; inset: 0; z-index: 2147483648;
+      background: rgba(0,0,0,.32);
+      display: flex; align-items: flex-start; justify-content: flex-end;
+    }
+    #aftPdfSheet .aft-panel {
+      margin: 64px 64px 24px 24px;
+      width: min(480px, 92vw); max-height: min(70vh, 700px);
+      background: #fff; color: #111;
+      border: 1px solid #e5e7eb; border-radius: 14px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.25), 0 4px 12px rgba(0,0,0,.1);
+      display: grid; grid-template-rows: auto auto 1fr; overflow: hidden;
+    }
+    #aftPdfSheet header {
+      display:flex; align-items:center; gap:10px; padding: 14px 16px; border-bottom: 1px solid #eee;
+      background: linear-gradient(180deg, #fafafa, #fff);
+    }
+    #aftPdfSheet header .aft-title { font-weight: 700; font-size: 14px; }
+    #aftPdfSheet header .aft-subtle { color: #6b7280; font-weight: 500; }
+    #aftPdfSheet .aft-search {
+      padding: 10px 16px; border-bottom: 1px solid #f1f1f1;
+    }
+    #aftPdfSheet .aft-search input {
+      width:100%; padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px; outline: none;
+      font: 500 14px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    #aftPdfSheet .aft-search input:focus { box-shadow: 0 0 0 3px rgba(59,130,246,.25); border-color:#93c5fd; }
+    #aftPdfSheet .aft-empty {
+      padding: 18px; color:#6b7280; font-size: 13px;
+    }
+    #aftPdfSheet .aft-list { overflow: auto; padding: 6px; }
+    #aftPdfSheet .aft-item {
+      width: 100%; text-align: left;
+      border: 1px solid #eef0f3; border-radius: 10px;
+      padding: 10px 12px; background: #fff;
+      display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center;
+      margin: 6px; cursor: pointer;
+      transition: transform .06s ease, border-color .12s ease, background .12s ease, box-shadow .12s ease;
+    }
+    #aftPdfSheet .aft-item:hover {
+      transform: translateY(-1px);
+      border-color:#cfe0ff; background:#f8fbff;
+      box-shadow: 0 4px 12px rgba(105,145,255,.18);
+    }
+    #aftPdfSheet .aft-item:focus-visible { outline: 3px solid rgba(59,130,246,.35); }
+    #aftPdfSheet .aft-name { font-weight: 600; font-size: 13px; color:#0b1526; }
+    #aftPdfSheet .aft-meta { color:#6b7280; font-size: 12px; }
+    #aftPdfSheet .aft-open {
+      padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; background:#111827; color:#fff; font-weight:600;
+    }
+    #aftPdfSheet .aft-open:hover { filter: brightness(1.03); }
+  `);
   function ensureButtons(force = false) {
     const itemsNow = availablePdfItems();
     const sigNow   = pdfItemsSig(itemsNow);
     if (!force && sigNow === __aftLastPdfSig) return;
     __aftLastPdfSig = sigNow;
     if (itemsNow.length === 0) {
-      removePdfButtons();
+      const pick = document.getElementById(PICK_ID);
+      if (pick) {
+        pick.setAttribute('disabled', 'true');
+        pick.title = 'No PDFs found on this page.';
+        const badge = pick.querySelector('.aft-badge'); if (badge) badge.textContent = '0';
+      } else {
+        removePdfButtons();
+      }
       return;
     }
     if (!document.getElementById(PICK_ID)) {
       const pick = document.createElement('button');
       pick.id = PICK_ID;
-      pick.textContent = 'Pick PDF…';
-      pick.style.cssText = `
-        position:fixed; top:64px; right:64px;
-        z-index:2147483647; padding:10px 14px;
-        background:#fff; color:#000;
-        border:1px solid #888; border-radius:6px; cursor:pointer;
-        box-shadow:0 2px 6px rgba(0,0,0,.15);
+      pick.setAttribute('aria-haspopup', 'dialog');
+      pick.setAttribute('aria-expanded', 'false');
+      pick.innerHTML = `
+        <svg class="aft-ico" viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm7 1.5V9h4.5L14 4.5zM9 12h6a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2zm0 4h6a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2z"/>
+        </svg>
+        <span class="aft-label">Pick PDF</span>
+        <span class="aft-badge">0</span>
       `;
-      pick.onclick = () => {
-        const items = availablePdfItems();
-        if (!items.length) { alert('No PDFs found on this page.'); return; }
-        const choices = items.map((it, i) => `${i+1}. ${it.name}`).join('\n');
-        const choice = prompt('Type number to open:\n\n' + choices);
-        const idx = (choice ? parseInt(choice, 10) : 0) - 1;
-        if (isFinite(idx) && items[idx]) openStyledWith(items[idx].href);
-      };
+      pick.onclick = () => openPdfSheet();
       document.body.appendChild(pick);
     }
     const btn  = document.getElementById(BTN_ID);
     const pick = document.getElementById(PICK_ID);
     if (btn)  btn.title  = `${itemsNow.length} PDF${itemsNow.length>1?'s':''} available`;
-    if (pick) pick.title = `Pick from ${itemsNow.length} PDF${itemsNow.length>1?'s':''}`;
+    if (pick) {
+      pick.title = `Pick from ${itemsNow.length} PDF${itemsNow.length>1?'s':''}`;
+      const badge = pick.querySelector('.aft-badge');
+      if (badge) badge.textContent = String(itemsNow.length);
+    }
+  }
+  function openPdfSheet() {
+    const items = availablePdfItems();
+    if (!items.length) { alert('No PDFs found on this page.'); return; }
+    let overlay = document.getElementById('aftPdfSheet');
+    if (overlay) overlay.remove();
+    overlay = document.createElement('div');
+    overlay.id = 'aftPdfSheet';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    const panel = document.createElement('div');
+    panel.className = 'aft-panel';
+    overlay.appendChild(panel);
+    const pickBtn = document.getElementById(PICK_ID);
+    pickBtn?.setAttribute('aria-expanded', 'true');
+    const hostText = (() => {
+      try { return (new URL(location.href)).host; } catch { return location.host; }
+    })();
+    panel.innerHTML = `
+      <header>
+        <div class="aft-title">Pick a PDF</div>
+        <div class="aft-subtle">(${items.length} found on ${hostText})</div>
+      </header>
+      <div class="aft-search"><input type="search" placeholder="Filter by name or URL… (↑/↓ to navigate, Enter to open, Esc to close)" /></div>
+      <div class="aft-list" tabindex="-1"></div>
+    `;
+    const list  = panel.querySelector('.aft-list');
+    const input = panel.querySelector('input');
+    function escHtml(s='') {
+      return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function row(it, idx) {
+      const host = (() => { try { return (new URL(it.href)).host; } catch { return ''; } })();
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'aft-item';
+      el.setAttribute('data-idx', String(idx));
+      el.innerHTML = `
+        <div>
+          <div class="aft-name" title="${escHtml(it.name)}">${escHtml(it.name)}</div>
+          <div class="aft-meta">${escHtml(host || it.href)}</div>
+        </div>
+        <div><span class="aft-open">Open</span></div>
+      `;
+      el.onclick = (ev) => {
+        ev.preventDefault();
+        close();
+        openStyledWith(it.href);
+      };
+      return el;
+    }
+    function render(filter='') {
+      list.innerHTML = '';
+      const q = filter.trim().toLowerCase();
+      const filtered = !q ? items : items.filter(it => {
+        return (it.name || '').toLowerCase().includes(q) ||
+              (it.href || '').toLowerCase().includes(q);
+      });
+      if (!filtered.length) {
+        const empty = document.createElement('div');
+        empty.className = 'aft-empty';
+        empty.textContent = 'No matches.';
+        list.appendChild(empty);
+        return;
+      }
+      filtered.forEach((it, i) => list.appendChild(row(it, i)));
+      const first = list.querySelector('.aft-item');
+      first?.focus();
+    }
+    function close() {
+      pickBtn?.setAttribute('aria-expanded', 'false');
+      overlay.remove();
+    }
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
+    window.addEventListener('keydown', onKey, { once: true, capture: true });
+    function onKey(e) {
+      if (!document.body.contains(overlay)) return;
+      if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+      if (!['ArrowUp','ArrowDown','Enter','Tab'].includes(e.key)) {
+        input?.focus(); return;
+      }
+    }
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const first = list.querySelector('.aft-item');
+        if (first) { first.click(); e.preventDefault(); }
+      }
+      if (e.key === 'ArrowDown') { (list.querySelector('.aft-item') || list).focus(); e.preventDefault(); }
+    });
+    list.addEventListener('keydown', (e) => {
+      const itemsEls = Array.from(list.querySelectorAll('.aft-item'));
+      const i = itemsEls.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown') {
+        const next = itemsEls[Math.min(i + 1, itemsEls.length - 1)] || itemsEls[0];
+        next?.focus(); e.preventDefault();
+      } else if (e.key === 'ArrowUp') {
+        const prev = itemsEls[Math.max(i - 1, 0)] || itemsEls[itemsEls.length - 1];
+        prev?.focus(); e.preventDefault();
+      } else if (e.key === 'Enter') {
+        document.activeElement?.click(); e.preventDefault();
+      }
+    });
+    input.addEventListener('input', () => render(input.value));
+    document.body.appendChild(overlay);
+    input.focus();
+    render('');
   }
   (function watchUrlChangesForRefresh() {
     let last = location.href;
     const reset = () => {
-      __aftLastPdfSig = '';     // force ensureButtons to recompute
-      removePdfButtons();       // clear old buttons immediately if needed
-      ensureButtons(true);      // rebuild now
+      __aftLastPdfSig = '';
+      removePdfButtons();
+      ensureButtons(true);
     };
     ['pushState','replaceState'].forEach(fn => {
       const orig = history[fn];
@@ -216,7 +411,7 @@ function getActiveRoots() {
       const origin = u.origin.includes('.lightning.force.com') ? getFileOrigin() : u.origin;
       const anyIds = (u.href.match(/0(68|69)[0-9A-Za-z]{12,18}/g) || []);
       if (anyIds.length) {
-        const id = anyIds[anyIds.length - 1]; // prefer the last if multiple
+        const id = anyIds[anyIds.length - 1];
         const base = id.startsWith('069')
           ? `${getFileOrigin()}/sfc/servlet.shepherd/document/download/`
           : `${getFileOrigin()}/sfc/servlet.shepherd/version/download/`;

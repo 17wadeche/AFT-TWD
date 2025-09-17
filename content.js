@@ -153,9 +153,13 @@ function getActiveRoots() {
       return;
     }
     if (!document.getElementById(PICK_ID)) {
+      const MENU_ID = PICK_ID + '_menu';
       const pick = document.createElement('button');
       pick.id = PICK_ID;
       pick.setAttribute('aria-label', 'Pick a PDF');
+      pick.setAttribute('aria-haspopup', 'menu');
+      pick.setAttribute('aria-expanded', 'false');
+      pick.setAttribute('aria-controls', MENU_ID);
       pick.style.cssText = `
         position:fixed; bottom:24px; right:24px;
         z-index:2147483647;
@@ -195,15 +199,106 @@ function getActiveRoots() {
       pick.addEventListener('mouseup', () => {
         pick.style.opacity = '1';
       });
-      pick.onclick = () => {
+      const menu = document.createElement('div');
+      menu.id = MENU_ID;
+      menu.setAttribute('role', 'menu');
+      menu.style.cssText = `
+        position:fixed; bottom:76px; right:24px;
+        z-index:2147483647;
+        min-width:240px; max-width:320px; max-height:50vh; overflow:auto;
+        padding:8px;
+        background: rgba(255,255,255,.82);
+        backdrop-filter: blur(12px) saturate(130%);
+        -webkit-backdrop-filter: blur(12px) saturate(130%);
+        border:1px solid rgba(0,0,0,.08);
+        border-radius:12px;
+        box-shadow:0 16px 40px rgba(0,0,0,.22);
+        display:none;
+        color:#111; font: 13px/1.3 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      `;
+      function buildMenu() {
+        menu.innerHTML = '';
         const items = availablePdfItems();
-        if (!items.length) { alert('No PDFs found on this page.'); return; }
-        const choices = items.map((it, i) => `${i+1}. ${it.name}`).join('\n');
-        const choice = prompt('Type number to open:\n\n' + choices);
-        const idx = (choice ? parseInt(choice, 10) : 0) - 1;
-        if (isFinite(idx) && items[idx]) openStyledWith(items[idx].href);
+        if (!items.length) {
+          const empty = document.createElement('div');
+          empty.style.cssText = 'padding:6px 8px; opacity:.7;';
+          empty.textContent = 'No PDFs found on this page.';
+          menu.appendChild(empty);
+          return;
+        }
+        const openAll = document.createElement('button');
+        openAll.type = 'button';
+        openAll.setAttribute('role', 'menuitem');
+        openAll.style.cssText = `
+          width:100%; text-align:left;
+          padding:8px 10px; margin-bottom:6px;
+          border-radius:8px; border:1px solid rgba(0,0,0,.06);
+          background: rgba(255,255,255,.6); cursor:pointer;
+          box-shadow:0 1px 3px rgba(0,0,0,.06);
+          transition: background .12s ease, transform .06s ease, box-shadow .12s ease;
+          font-weight:600;
+        `;
+        openAll.textContent = `Open all (${items.length})`;
+        openAll.onclick = () => {
+          items.forEach(it => openStyledWith(it.href));
+          hideMenu();
+        };
+        openAll.onmouseenter = () => { openAll.style.background = 'rgba(255,255,255,.9)'; openAll.style.boxShadow = '0 2px 6px rgba(0,0,0,.10)'; };
+        openAll.onmouseleave = () => { openAll.style.background = 'rgba(255,255,255,.6)'; openAll.style.boxShadow = '0 1px 3px rgba(0,0,0,.06)'; };
+        menu.appendChild(openAll);
+        const hr = document.createElement('div');
+        hr.style.cssText = 'height:1px;background:rgba(0,0,0,.08);margin:6px 0;';
+        menu.appendChild(hr);
+        items.forEach((it, i) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.setAttribute('role', 'menuitem');
+          btn.style.cssText = `
+            width:100%; text-align:left;
+            padding:8px 10px; margin:4px 0;
+            border-radius:8px; border:1px solid rgba(0,0,0,.06);
+            background: rgba(255,255,255,.6); cursor:pointer;
+            box-shadow:0 1px 3px rgba(0,0,0,.06);
+            transition: background .12s ease, transform .06s ease, box-shadow .12s ease;
+            display:flex; align-items:center; gap:8px;
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+          `;
+          btn.innerHTML = `
+            <span style="flex:0 0 auto; opacity:.7;">${i+1}.</span>
+            <span style="flex:1 1 auto; overflow:hidden; text-overflow:ellipsis;">${it.name}</span>
+          `;
+          btn.onclick = () => { openStyledWith(it.href); hideMenu(); };
+          btn.onmouseenter = () => { btn.style.background = 'rgba(255,255,255,.9)'; btn.style.boxShadow = '0 2px 6px rgba(0,0,0,.10)'; };
+          btn.onmouseleave = () => { btn.style.background = 'rgba(255,255,255,.6)'; btn.style.boxShadow = '0 1px 3px rgba(0,0,0,.06)'; };
+          menu.appendChild(btn);
+        });
+      }
+      function showMenu() {
+        buildMenu();
+        menu.style.display = '';
+        pick.setAttribute('aria-expanded', 'true');
+        setTimeout(() => {
+          document.addEventListener('mousedown', onDocDown, { once: true });
+          document.addEventListener('keydown', onKey, { once: true });
+        }, 0);
+      }
+      function hideMenu() {
+        menu.style.display = 'none';
+        pick.setAttribute('aria-expanded', 'false');
+      }
+      function onDocDown(e) {
+        if (!menu.contains(e.target) && e.target !== pick) hideMenu();
+      }
+      function onKey(e) {
+        if (e.key === 'Escape') hideMenu();
+      }
+      pick.onclick = (e) => {
+        e.stopPropagation();
+        const visible = menu.style.display !== 'none' && menu.style.display !== '';
+        visible ? hideMenu() : showMenu();
       };
       document.body.appendChild(pick);
+      document.body.appendChild(menu);
     }
     const btn  = document.getElementById(BTN_ID);
     const pick = document.getElementById(PICK_ID);

@@ -164,25 +164,6 @@ function queryAllDeep(selector, root = document) {
       removePdfButtons();
       return;
     }
-    if (!document.getElementById(BTN_ID)) {
-      const btn = document.createElement('button');
-      btn.id = BTN_ID;
-      btn.textContent = 'Open Styled';
-      btn.style.cssText = `
-        position:fixed; top:64px; right:178px;
-        z-index:2147483647; padding:10px 14px;
-        background:#ff0; color:#000; font-weight:700;
-        border:1px solid #888; border-radius:6px; cursor:pointer;
-        box-shadow:0 2px 6px rgba(0,0,0,.15);
-      `;
-      btn.onclick = () => {
-        const items = availablePdfItems();
-        if (!items.length) { alert('No PDFs found on this page.'); return; }
-        const first = items.find(i => /download\/[A-Za-z0-9]+$/.test(i.href)) || items[0];
-        openStyledWith(first?.href);
-      };
-      document.body.appendChild(btn);
-    }
     if (!document.getElementById(PICK_ID)) {
       const pick = document.createElement('button');
       pick.id = PICK_ID;

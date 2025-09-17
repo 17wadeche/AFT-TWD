@@ -4,8 +4,32 @@ const ALLOWED_PREFIXES = [
   'https://cpic1cs.corp.medtronic.com:8008/sap/bc/contentserver/',
   'https://crmstage.medtronic.com/sap/bc/contentserver/',
   'https://crm.medtronic.com/sap/bc/contentserver/',
-  'https://medtronicinctwd--dev.sandbox.lightning.force.com/lightning/r/'
+  'https://medtronicinctwd--dev.sandbox.lightning.force.com/lightning/r/',
+  'https://medtronicinctwd--dev.sandbox.lightning.force.com/sfc/',
+  'https://medtronicinctwd--dev.sandbox.lightning.force.com/sfcdoc/'
 ];
+(function addSfPreviewOpenStyled() {
+  if (!location.hostname.endsWith('.lightning.force.com')) return;
+  const extViewer = chrome.runtime.getURL('viewer.html');
+  const btnId = '__aft_sf_open_styled';
+  const mo = new MutationObserver(() => {
+    const toolbar = document.querySelector('div[role="dialog"] [title="Download"], div[role="dialog"] a[title="Download"]')?.closest('div[role="dialog"]');
+    const iframe = document.querySelector('div[role="dialog"] iframe[src*="/sfc/servlet.shepherd/"], div[role="dialog"] iframe[src*="/sfcdoc/"]');
+    if (!toolbar || !iframe) return;
+    if (document.getElementById(btnId)) return;
+    const btn = document.createElement('button');
+    btn.id = btnId;
+    btn.textContent = 'Open Styled';
+    btn.style.cssText = 'position:absolute; top:8px; right:88px; z-index:2147483647; padding:6px 12px; background:#ff0; color:#000; font-weight:700; border:1px solid #888; border-radius:4px; cursor:pointer;';
+    btn.onclick = () => {
+      const dl = document.querySelector('div[role="dialog"] a[title="Download"]') || document.querySelector('div[role="dialog"] a[aria-label="Download"]');
+      const src = (dl && dl.href) ? dl.href : iframe.src;
+      window.open(extViewer + '?src=' + encodeURIComponent(src), '_blank', 'noopener');
+    };
+    toolbar.appendChild(btn);
+  });
+  mo.observe(document.documentElement, { subtree: true, childList: true });
+})();
 (function offerOpenStyledButton() {
   if (location.hash !== '#noaft') return;
   if (!urlIsAllowed(location.href.replace(/#noaft$/, ''))) return;

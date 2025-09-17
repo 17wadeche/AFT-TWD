@@ -93,7 +93,9 @@ function getActiveRoots() {
   const PICK_ID = '__aft_sf_pick_pdf';
   function openStyledWith(src) {
     const pdf = normalizeToPdf(src);
-    if (!pdf) return alert('No PDF URL found.');
+    if (!pdf || !looksLikePdf(pdf)) {
+      return alert('This link is not a PDF.');
+    }
     window.open(EXT_VIEWER + '?src=' + encodeURIComponent(pdf), '_blank', 'noopener');
   }
   function availablePdfItems() {
@@ -115,11 +117,13 @@ function getActiveRoots() {
     const roots = getActiveRoots();
     const push = (el, name, rawHref) => {
       const href = normalizeToPdf(rawHref || '');
+      const displayName = (name || el.getAttribute?.('title') || el.textContent || 'File').trim();
       if (!href) return;
       if (!isVisibleDeep(el)) return;
+      if (!looksLikePdf(href, displayName, el)) return;
       if (seen.has(href)) return;
       seen.add(href);
-      out.push({ name: (name || el.getAttribute?.('title') || el.textContent || 'File').trim(), href });
+      out.push({ name: displayName, href });
     };
     for (const root of roots) {
       queryAllDeep('a[title="Download"], a[aria-label="Download"], button[title="Download"], button[aria-label="Download"]', root)
@@ -366,6 +370,34 @@ function getActiveRoots() {
       if (location.href !== last) { last = location.href; reset(); }
     }, 800);
   })();
+  function looksLikePdf(href, name = '', el = null) {
+    try {
+      if (el && el.hasAttribute && el.hasAttribute('data-downloadurl')) {
+        const csv = el.getAttribute('data-downloadurl') || '';
+        const mime = (csv.split(':')[0] || '').trim().toLowerCase();
+        if (mime) return mime === 'application/pdf';
+      }
+      if (/\.(pdf)(?:[#?].*)?$/i.test(name) || /\.(pdf)(?:[#?].*)?$/i.test(href)) return true;
+      const u = new URL(href, location.href);
+      const qName = u.searchParams.get('filename') ||
+                    u.searchParams.get('fileName') ||
+                    u.searchParams.get('name') ||
+                    u.searchParams.get('download');
+      if (qName && /\.pdf$/i.test(qName)) return true;
+      const hint = u.searchParams.get('rendition') ||
+                  u.searchParams.get('format') ||
+                  u.searchParams.get('output') ||
+                  u.searchParams.get('contentType');
+      if (hint && /pdf|application\/pdf/i.test(hint)) return true;
+      if (/\/sfc\/servlet\.shepherd\/(?:version|document)\/download\//.test(u.pathname) ||
+          /^(068|069)[0-9A-Za-z]{12,18}$/.test(href)) {
+        return /\.pdf$/i.test(name);
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
   function normalizeToPdf(url) {
     if (!url) return '';
     try {

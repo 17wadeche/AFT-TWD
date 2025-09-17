@@ -8,7 +8,8 @@
       "matches": [
         "https://cpic1cs.corp.medtronic.com:8008/*",
         "https://crmstage.medtronic.com/*",
-        "https://crm.medtronic.com/*"
+        "https://crm.medtronic.com/*",
+        "https://medtronicinctwd--dev.sandbox.lightning.force.com/*"
       ],
       "js": ["content.js"],
       "type": "module",
@@ -19,7 +20,8 @@
   "host_permissions": [
     "https://cpic1cs.corp.medtronic.com:8008/*",
     "https://crmstage.medtronic.com/*",
-    "https://crm.medtronic.com/*"
+    "https://crm.medtronic.com/*",
+    "https://medtronicinctwd--dev.sandbox.lightning.force.com/*"
   ],
   "web_accessible_resources": [
     {
@@ -36,7 +38,8 @@
       "matches": [
         "https://cpic1cs.corp.medtronic.com:8008/*",
         "https://crmstage.medtronic.com/*",
-        "https://crm.medtronic.com/*"
+        "https://crm.medtronic.com/*",
+        "https://medtronicinctwd--dev.sandbox.lightning.force.com/*"
       ]
     }
   ]

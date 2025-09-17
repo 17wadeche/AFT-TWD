@@ -6,29 +6,73 @@ const ALLOWED_PREFIXES = [
   'https://crm.medtronic.com/sap/bc/contentserver/',
   'https://medtronicinctwd--dev.sandbox.lightning.force.com/lightning/r/',
   'https://medtronicinctwd--dev.sandbox.lightning.force.com/sfc/',
-  'https://medtronicinctwd--dev.sandbox.lightning.force.com/sfcdoc/'
+  'https://medtronicinctwd--dev.sandbox.lightning.force.com/sfcdoc/',
+  "https://medtronicinctwd--dev.sandbox.file.force.com/sfc/",
+  "https://medtronicinctwd--dev.sandbox.file.force.com/sfcdoc/",
+  "https://*.file.force.com/sfc/",
+  "https://*.file.force.com/sfcdoc/"
 ];
 (function addSfPreviewOpenStyled() {
   if (!location.hostname.endsWith('.lightning.force.com')) return;
-  const extViewer = chrome.runtime.getURL('viewer.html');
-  const btnId = '__aft_sf_open_styled';
-  const mo = new MutationObserver(() => {
-    const toolbar = document.querySelector('div[role="dialog"] [title="Download"], div[role="dialog"] a[title="Download"]')?.closest('div[role="dialog"]');
-    const iframe = document.querySelector('div[role="dialog"] iframe[src*="/sfc/servlet.shepherd/"], div[role="dialog"] iframe[src*="/sfcdoc/"]');
-    if (!toolbar || !iframe) return;
-    if (document.getElementById(btnId)) return;
-    const btn = document.createElement('button');
-    btn.id = btnId;
-    btn.textContent = 'Open Styled';
-    btn.style.cssText = 'position:absolute; top:8px; right:88px; z-index:2147483647; padding:6px 12px; background:#ff0; color:#000; font-weight:700; border:1px solid #888; border-radius:4px; cursor:pointer;';
-    btn.onclick = () => {
-      const dl = document.querySelector('div[role="dialog"] a[title="Download"]') || document.querySelector('div[role="dialog"] a[aria-label="Download"]');
-      const src = (dl && dl.href) ? dl.href : iframe.src;
-      window.open(extViewer + '?src=' + encodeURIComponent(src), '_blank', 'noopener');
-    };
-    toolbar.appendChild(btn);
-  });
+  const EXT_VIEWER = chrome.runtime.getURL('viewer.html');
+  const BTN_ID = '__aft_sf_open_styled';
+  const PICK_ID = '__aft_sf_pick_pdf';
+  function openStyledWith(src) {
+    if (!src) return;
+    window.open(EXT_VIEWER + '?src=' + encodeURIComponent(src), '_blank', 'noopener');
+  }
+  function collectPdfLinks() {
+    const links = new Map();
+    document.querySelectorAll(
+      'div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"]'
+    ).forEach(a => links.set(a.textContent.trim() || 'Download', a.href));
+    document.querySelectorAll(
+      'div[role="dialog"] iframe[src*="/sfc/servlet.shepherd/"], div[role="dialog"] iframe[src*="/sfcdoc/"]'
+    ).forEach(ifr => links.set('Current preview', ifr.src));
+    document.querySelectorAll('a[href*="/sfc/servlet.shepherd/version/"]').forEach(a => {
+      const name = a.textContent.trim() || (a.getAttribute('title') || '').trim() || 'File';
+      const href = a.href;
+      const dl = href.replace('/version/', '/version/download/');
+      links.set(name, dl);
+    });
+    return [...links.entries()]
+      .filter(([, href]) => /\/version\/download\//.test(href) || /(\.pdf\b|format=pdf|contentType=application\/pdf)/i.test(href))
+      .map(([name, href]) => ({ name, href }));
+  }
+  function ensureButtons() {
+    const dialog = document.querySelector('div[role="dialog"]');
+    if (!dialog) return;
+    dialog.style.position ||= 'relative';
+    if (!document.getElementById(BTN_ID)) {
+      const btn = document.createElement('button');
+      btn.id = BTN_ID;
+      btn.textContent = 'Open Styled';
+      btn.style.cssText = 'position:absolute;top:8px;right:140px;z-index:2147483647;padding:6px 12px;background:#ff0;color:#000;font-weight:700;border:1px solid #888;border-radius:4px;cursor:pointer;';
+      btn.onclick = () => {
+        const dl = document.querySelector('div[role="dialog"] a[title="Download"], div[role="dialog"] a[aria-label="Download"]');
+        const ifr = document.querySelector('div[role="dialog"] iframe[src*="/sfc/servlet.shepherd/"], div[role="dialog"] iframe[src*="/sfcdoc/"]');
+        openStyledWith(dl?.href || ifr?.src);
+      };
+      dialog.appendChild(btn);
+    }
+    if (!document.getElementById(PICK_ID)) {
+      const pick = document.createElement('button');
+      pick.id = PICK_ID;
+      pick.textContent = 'Pick PDF…';
+      pick.style.cssText = 'position:absolute;top:8px;right:16px;z-index:2147483647;padding:6px 12px;background:#fff;color:#000;border:1px solid #888;border-radius:4px;cursor:pointer;';
+      pick.onclick = () => {
+        const items = collectPdfLinks();
+        if (!items.length) { alert('No PDFs found on this page.'); return; }
+        const choice = prompt('Type number to open:\n\n' + items.map((it, i) => `${i+1}. ${it.name}`).join('\n'));
+        const idx = (choice ? parseInt(choice, 10) : 0) - 1;
+        if (isFinite(idx) && items[idx]) openStyledWith(items[idx].href);
+      };
+      dialog.appendChild(pick);
+    }
+  }
+  const mo = new MutationObserver(ensureButtons);
   mo.observe(document.documentElement, { subtree: true, childList: true });
+  ensureButtons();
 })();
 (function offerOpenStyledButton() {
   if (location.hash !== '#noaft') return;

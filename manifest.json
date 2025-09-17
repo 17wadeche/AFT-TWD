@@ -10,7 +10,8 @@
         "https://crmstage.medtronic.com/*",
         "https://crm.medtronic.com/*",
         "https://medtronicinctwd--dev.sandbox.lightning.force.com/*",
-        "https://*.lightning.force.com/*"
+        "https://*.lightning.force.com/*",
+        "https://*.file.force.com/*"
       ],
       "js": ["content.js"],
       "type": "module",
@@ -23,7 +24,8 @@
     "https://crmstage.medtronic.com/*",
     "https://crm.medtronic.com/*",
     "https://medtronicinctwd--dev.sandbox.lightning.force.com/*",
-    "https://*.lightning.force.com/*"
+    "https://*.lightning.force.com/*",
+    "https://*.file.force.com/*"
   ],
   "web_accessible_resources": [
     {
@@ -42,7 +44,8 @@
         "https://crmstage.medtronic.com/*",
         "https://crm.medtronic.com/*",
         "https://medtronicinctwd--dev.sandbox.lightning.force.com/*",
-        "https://*.lightning.force.com/*"
+        "https://*.lightning.force.com/*",
+        "https://*.file.force.com/*"
       ]
     }
   ]

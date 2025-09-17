@@ -93,7 +93,12 @@ function queryAllDeep(selector, root = document) {
   AFT_LOG('ContentVersion a :', queryAllDeep('a[href*="/lightning/r/ContentVersion/"]').length);
   AFT_LOG('data-recordid^="068":', queryAllDeep('[data-recordid^="068"]').length);
   AFT_LOG('shepherd version  :', queryAllDeep('a[href*="/sfc/servlet.shepherd/version/"]').length);
-  AFT_LOG('collectPdfLinks out:', out);
+  try {
+    const _links = collectPdfLinks();
+    AFT_LOG('collectPdfLinks ->', _links.length, _links);
+  } catch (e) {
+    console.error('[AFT] collectPdfLinks() threw:', e);
+  }
   window.__aftCollectPdfLinks = collectPdfLinks;
   function ensureButtons() {
     if (!document.getElementById(BTN_ID)) {
@@ -180,7 +185,7 @@ function queryAllDeep(selector, root = document) {
       return '';
     }
   };
-  window.queryAllDeep = (sel) => {
+  window.__aftQueryAllDeep = (sel) => {
     try {
       const els = queryAllDeep(sel);
       AFT_LOG('__aftQueryAllDeep', sel, '->', els.length);

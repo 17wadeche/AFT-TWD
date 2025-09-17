@@ -162,77 +162,25 @@ function queryAllDeep(selector, root = document) {
       document.body.appendChild(btn);
     }
     if (!document.getElementById(PICK_ID)) {
-      const pick = document.createElement('select');
+      const pick = document.createElement('button');
       pick.id = PICK_ID;
-      pick.className = 'modern-select';
+      pick.textContent = 'Pick PDF…';
       pick.style.cssText = `
         position:fixed; top:64px; right:64px;
-        z-index:2147483647; max-width:360px;
+        z-index:2147483647; padding:10px 14px;
+        background:#fff; color:#000;
+        border:1px solid #888; border-radius:6px; cursor:pointer;
+        box-shadow:0 2px 6px rgba(0,0,0,.15);
       `;
-      const placeholder = () => {
-        pick.innerHTML = '';
-        const opt0 = new Option('— Pick PDF —', '', true, true);
-        opt0.disabled = true;
-        pick.appendChild(opt0);
+      pick.onclick = () => {
+        const items = collectPdfLinks();
+        if (!items.length) { alert('No PDFs found on this page.'); return; }
+        const choices = items.map((it, i) => `${i+1}. ${it.name}`).join('\n');
+        const choice = prompt('Type number to open:\n\n' + choices);
+        const idx = (choice ? parseInt(choice, 10) : 0) - 1;
+        if (isFinite(idx) && items[idx]) openStyledWith(items[idx].href);
       };
-      const labelFrom = (item) => {
-        const name = (item.name || '').trim();
-        if (name && !/^download$/i.test(name)) return name;
-        try {
-          const u = new URL(item.href, location.href);
-          const id = (u.href.match(/0(68|69)[0-9A-Za-z]{12,18}/g) || []).pop();
-          if (id) return `File ${id}`;
-        } catch {}
-        return 'File';
-      };
-      const renderOptions = () => {
-        placeholder();
-        const items = (window.__aftCollectPdfLinks?.() || [])
-          .filter(x => !/current preview/i.test(x.name || ''));
-        const seen = new Set();
-        for (const it of items) {
-          if (!it?.href || seen.has(it.href)) continue;
-          seen.add(it.href);
-          pick.appendChild(new Option(labelFrom(it), it.href));
-        }
-      };
-      renderOptions();
-      pick.addEventListener('focus', renderOptions);
-      pick.addEventListener('mousedown', renderOptions);
-      pick.addEventListener('change', () => {
-        const href = pick.value;
-        if (href) {
-          openStyledWith(href);
-          placeholder(); // reset selection after opening
-        }
-      });
       document.body.appendChild(pick);
-    } else {
-      const pick = document.getElementById(PICK_ID);
-      if (document.activeElement !== pick) {
-        const restore = pick.value;
-        const renderOptions = () => {
-          const first = pick.querySelector('option')?.textContent || '';
-          if (!/Pick PDF/i.test(first)) {
-            return;
-          }
-          const items = (window.__aftCollectPdfLinks?.() || [])
-            .filter(x => !/current preview/i.test(x.name || ''));
-          const seen = new Set();
-          const newHtml = ['<option disabled selected>— Pick PDF —</option>'];
-          for (const it of items) {
-            if (!it?.href || seen.has(it.href)) continue;
-            seen.add(it.href);
-            const label = (it.name && !/^download$/i.test(it.name))
-              ? it.name
-              : (it.href.match(/0(68|69)\w{12,18}/)?.[0] ? `File ${it.href.match(/0(68|69)\w{12,18}/)[0]}` : 'File');
-            newHtml.push(`<option value="${it.href.replace(/"/g, '&quot;')}">${label.replace(/</g,'&lt;')}</option>`);
-          }
-          pick.innerHTML = newHtml.join('');
-          if (restore && seen.has(restore)) pick.value = restore;
-        };
-        renderOptions();
-      }
     }
   }
   function normalizeToPdf(url) {

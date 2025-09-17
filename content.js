@@ -2358,19 +2358,32 @@ async function main(host = {}, fetchUrlOverride) {
     if (wrapper && embed) {
       wrapper.replaceWith(embed);
       embed.style.display = '';
-    } else if (window.__AFT_FETCH_URL) {
+      noStylesBannerEl?.remove(); noStylesBannerEl = null;
+      container?.remove(); hlPanel?.remove(); customPanel?.remove(); toggle?.remove();
+      document.body.classList.remove('aft-active');
+      styleTag?.remove(); link?.remove();
+      return;
+    }
+    if (window.__AFT_FROM_VIEWER) {
+      try { window.close(); } catch {}
+      setTimeout(() => {
+        try { chrome.runtime.sendMessage({ type: 'CLOSE_ME' }); } catch {}
+        setTimeout(() => {
+          if (!window.closed && window.__AFT_FETCH_URL) {
+            location.href = window.__AFT_FETCH_URL + (window.__AFT_FETCH_URL.includes('#') ? '' : '#noaft');
+          }
+        }, 250);
+      }, 150);
+      return;
+    }
+    if (window.__AFT_FETCH_URL) {
       location.href = window.__AFT_FETCH_URL + (window.__AFT_FETCH_URL.includes('#') ? '' : '#noaft');
       return;
     }
-    noStylesBannerEl?.remove();
-    noStylesBannerEl = null;
-    container?.remove();
-    hlPanel?.remove();
-    customPanel?.remove();
-    toggle?.remove();
+    noStylesBannerEl?.remove(); noStylesBannerEl = null;
+    container?.remove(); hlPanel?.remove(); customPanel?.remove(); toggle?.remove();
     document.body.classList.remove('aft-active');
-    styleTag?.remove();
-    link?.remove();
+    styleTag?.remove(); link?.remove();
   };
 }
 (function installAftBridge() {

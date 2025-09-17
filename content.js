@@ -24,6 +24,26 @@ function getFileOrigin() {
   const host = location.hostname.replace('.lightning.force.com', '.file.force.com');
   return `${location.protocol}//${host}`;
 }
+function longestCommonPrefix(strings) {
+  if (!strings.length) return '';
+  let prefix = strings[0];
+  for (let i = 1; i < strings.length; i++) {
+    const s = strings[i];
+    let j = 0;
+    const max = Math.min(prefix.length, s.length);
+    while (j < max && prefix.charCodeAt(j) === s.charCodeAt(j)) j++;
+    prefix = prefix.slice(0, j);
+    if (!prefix) break;
+  }
+  return prefix;
+}
+function stripPrefixAndTidy(name, prefix) {
+  if (!prefix) return name;
+  let out = name.slice(prefix.length);
+  out = out.replace(/^[-_.\s]+/, '');
+  return out || name; // fallback if we stripped everything somehow
+}
+function escHtml(s) { return String(s).replace(/</g, '&lt;'); }
 function* walkRoots(root) {
   yield root;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
@@ -225,6 +245,13 @@ function getActiveRoots() {
           empty.textContent = 'No PDFs found on this page.';
           menu.appendChild(empty);
           return;
+        }
+        const names = items.map(it => (it.name || '').trim());
+        let common = longestCommonPrefix(names);
+        if (common.length < 4) common = '';
+        if (common && /[-_.\s]$/.test(common) === false) {
+          const m = common.match(/^(.*?)([-_.\s])[^-_.\s]*$/);
+          if (m && m[1].length >= 4) common = m[1] + m[2];
         }
         const openAll = document.createElement('button');
         openAll.type = 'button';
